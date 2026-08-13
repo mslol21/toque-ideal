@@ -7,6 +7,13 @@ export interface Category {
   display_order?: number;
 }
 
+export interface GlassColorOption {
+  id: string;
+  name: string;
+  hex: string;
+  is_active: boolean;
+}
+
 export type PersonalizationOption =
   | 'Gravação Laser no Vidro'
   | 'Lapidação Especial'
@@ -69,6 +76,10 @@ export interface ClientData {
   company: string;
   whatsapp: string;
   email: string;
+  cep?: string;
+  address?: string;
+  number?: string;
+  neighborhood?: string;
   city: string;
   state: string;
   notes?: string;

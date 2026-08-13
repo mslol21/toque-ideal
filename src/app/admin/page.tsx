@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Product, Quote, AnalyticsEvent, QuoteStatus, CartItem, PersonalizationOption, Category } from '@/types';
+import { Product, Quote, AnalyticsEvent, QuoteStatus, CartItem, PersonalizationOption, Category, GlassColorOption } from '@/types';
 import {
   getProductsFromStore,
   saveProductToStore,
@@ -13,6 +13,9 @@ import {
   getCategoriesFromStore,
   saveCategoryToStore,
   deleteCategoryFromStore,
+  getColorsFromStore,
+  saveColorToStore,
+  deleteColorFromStore,
   generateUUID,
 } from '@/lib/supabase';
 import { formatCurrency, generateQuoteId, buildWhatsAppUrl, calculateCartTotals } from '@/lib/utils';
@@ -51,25 +54,18 @@ import {
   Gift,
   Star,
   Palette,
+  MapPin,
 } from 'lucide-react';
-
-const availableColorOptions = [
-  'Verde Esmeralda',
-  'Âmbar Dourado',
-  'Azul Cobalto',
-  'Fumê Cristal',
-  'Incolor / Transparente',
-  'Rubi Imperial',
-];
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'categories' | 'products' | 'quotes' | 'new-quote' | 'analytics'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'categories' | 'colors' | 'products' | 'quotes' | 'new-quote' | 'analytics'>('dashboard');
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [glassColors, setGlassColors] = useState<GlassColorOption[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsEvent[]>([]);
@@ -77,6 +73,9 @@ export default function AdminPage() {
 
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  const [editingColor, setEditingColor] = useState<GlassColorOption | null>(null);
+  const [isColorModalOpen, setIsColorModalOpen] = useState(false);
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -102,9 +101,14 @@ export default function AdminPage() {
   const [companyName, setCompanyName] = useState('');
   const [clientWhatsapp, setClientWhatsapp] = useState('');
   const [clientEmail, setClientEmail] = useState('');
+  const [clientCep, setClientCep] = useState('');
+  const [clientAddress, setClientAddress] = useState('');
+  const [clientNumber, setClientNumber] = useState('');
+  const [clientNeighborhood, setClientNeighborhood] = useState('');
   const [clientCity, setClientCity] = useState('');
   const [clientState, setClientState] = useState('SP');
   const [quoteNotes, setQuoteNotes] = useState('');
+  const [isSearchingCepAdmin, setIsSearchingCepAdmin] = useState(false);
 
   const [generatedQuoteSuccess, setGeneratedQuoteSuccess] = useState<Quote | null>(null);
 
@@ -120,13 +124,15 @@ export default function AdminPage() {
 
   const loadAllData = async () => {
     setLoading(true);
-    const [cData, pData, qData, aData] = await Promise.all([
+    const [cData, colData, pData, qData, aData] = await Promise.all([
       getCategoriesFromStore(),
+      getColorsFromStore(),
       getProductsFromStore(),
       getQuotesFromStore(),
       getAnalyticsEvents(),
     ]);
     setCategories(cData);
+    setGlassColors(colData);
     setProducts(pData);
     setQuotes(qData);
     setAnalytics(aData);
@@ -141,13 +147,32 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (editingProduct) {
-      setFormColors(editingProduct.available_colors || availableColorOptions);
+      setFormColors(editingProduct.available_colors || glassColors.map(c => c.name));
       setFormHasGoldRim(editingProduct.has_gold_rim_option ?? true);
     } else {
-      setFormColors(availableColorOptions);
+      setFormColors(glassColors.map(c => c.name));
       setFormHasGoldRim(true);
     }
-  }, [editingProduct]);
+  }, [editingProduct, glassColors]);
+
+  const handleAdminCepChange = async (val: string) => {
+    setClientCep(val);
+    const clean = val.replace(/\D/g, '');
+    if (clean.length === 8) {
+      setIsSearchingCepAdmin(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          setClientAddress(data.logradouro || '');
+          setClientNeighborhood(data.bairro || '');
+          setClientCity(data.localidade || '');
+          setClientState(data.uf || '');
+        }
+      } catch (e) {}
+      setIsSearchingCepAdmin(false);
+    }
+  };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,6 +217,33 @@ export default function AdminPage() {
   const handleDeleteCategory = async (id: string) => {
     if (confirm('Tem certeza que deseja excluir esta categoria? Os produtos vinculados serão mantidos.')) {
       await deleteCategoryFromStore(id);
+      loadAllData();
+    }
+  };
+
+  // SAVE GLASS COLOR
+  const handleSaveColor = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const id = editingColor ? editingColor.id : generateUUID();
+    const name = formData.get('name') as string;
+
+    const newColor: GlassColorOption = {
+      id,
+      name,
+      hex: (formData.get('hex') as string) || '#204060',
+      is_active: formData.get('is_active') === 'on',
+    };
+
+    await saveColorToStore(newColor);
+    setIsColorModalOpen(false);
+    setEditingColor(null);
+    loadAllData();
+  };
+
+  const handleDeleteColor = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir esta opção de cor do vidro?')) {
+      await deleteColorFromStore(id);
       loadAllData();
     }
   };
@@ -264,6 +316,10 @@ export default function AdminPage() {
       company: companyName,
       whatsapp: clientWhatsapp,
       email: clientEmail,
+      cep: clientCep,
+      address: clientAddress,
+      number: clientNumber,
+      neighborhood: clientNeighborhood,
       city: clientCity,
       state: clientState,
       notes: quoteNotes,
@@ -285,6 +341,10 @@ export default function AdminPage() {
     setCompanyName('');
     setClientWhatsapp('');
     setClientEmail('');
+    setClientCep('');
+    setClientAddress('');
+    setClientNumber('');
+    setClientNeighborhood('');
     setClientCity('');
     setQuoteNotes('');
     loadAllData();
@@ -396,7 +456,7 @@ export default function AdminPage() {
       is_featured: formData.get('is_featured') === 'on',
       is_launch: formData.get('is_launch') === 'on',
       custom_options: ['Gravação Laser no Vidro', 'Lapidação Especial', 'Filete em Ouro 24k / Borda Dourada', 'Embalagem Especial de Presente'],
-      available_colors: formColors.length > 0 ? formColors : availableColorOptions,
+      available_colors: formColors.length > 0 ? formColors : glassColors.map(c => c.name),
       has_gold_rim_option: formHasGoldRim,
       images: [
         (formData.get('image_url') as string) || 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800'
@@ -482,6 +542,16 @@ export default function AdminPage() {
           >
             <Layers className="w-4 h-4" />
             <span>Categorias</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('colors')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'colors' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Palette className="w-4 h-4" />
+            <span>Cores</span>
           </button>
 
           <button
@@ -701,6 +771,83 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* GLASS COLORS MANAGEMENT TAB ("CORES") */}
+        {activeTab === 'colors' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-extrabold text-slate-900">Gestão de Cores do Vidro</h2>
+                <p className="text-xs text-slate-500 font-medium">Cadastre, edite e ative as opções de cores disponíveis para os produtos.</p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEditingColor(null);
+                  setIsColorModalOpen(true);
+                }}
+                className="px-4 py-2.5 rounded-xl brand-gradient-bg font-bold text-xs flex items-center gap-2 shadow-md shrink-0 text-white uppercase tracking-wider"
+              >
+                <Plus className="w-4 h-4 text-white" /> NOVA COR
+              </button>
+            </div>
+
+            {/* COLORS TABLE */}
+            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4">Amostra Visual</th>
+                    <th className="p-4">Nome da Cor</th>
+                    <th className="p-4">Código Hex / Cor</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {glassColors.map(colorOpt => (
+                    <tr key={colorOpt.id} className="hover:bg-slate-50">
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-6 h-6 rounded-full border border-slate-300 shadow-sm shrink-0"
+                            style={{ backgroundColor: colorOpt.hex || '#204060' }}
+                          />
+                        </div>
+                      </td>
+                      <td className="p-4 font-bold text-slate-900">{colorOpt.name}</td>
+                      <td className="p-4 font-mono font-bold text-slate-600">{colorOpt.hex || '#204060'}</td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          colorOpt.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {colorOpt.is_active ? 'Ativa' : 'Inativa'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right space-x-2">
+                        <button
+                          onClick={() => {
+                            setEditingColor(colorOpt);
+                            setIsColorModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteColor(colorOpt.id)}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-100 text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* NEW QUOTE GENERATOR WORKSTATION TAB ("NOVO ORÇAMENTO") */}
         {activeTab === 'new-quote' && (
           <div className="space-y-6">
@@ -713,7 +860,7 @@ export default function AdminPage() {
                 Criar Novo Orçamento Comercial
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Monte o pedido do cliente, preencha os dados da empresa e gere a cotação formal com link direto do WhatsApp.
+                Monte o pedido do cliente, preencha os dados da empresa/endereço e gere a cotação formal com link direto do WhatsApp.
               </p>
             </div>
 
@@ -761,8 +908,8 @@ export default function AdminPage() {
                           onChange={e => setAddItemColor(e.target.value)}
                           className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold"
                         >
-                          {availableColorOptions.map(c => (
-                            <option key={c} value={c}>{c}</option>
+                          {glassColors.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
                           ))}
                         </select>
                       </div>
@@ -902,7 +1049,7 @@ export default function AdminPage() {
                 <form onSubmit={handleCreateAdminQuote} className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
                   <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                     <Building className="w-4 h-4 text-[#204060]" />
-                    <span>2. Dados do Cliente / Empresa</span>
+                    <span>2. Dados do Cliente & Endereço</span>
                   </h3>
 
                   <div className="space-y-3 text-xs">
@@ -968,26 +1115,80 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="col-span-2">
-                        <label className="text-slate-700 font-bold block mb-1">Cidade</label>
-                        <input
-                          type="text"
-                          value={clientCity}
-                          onChange={e => setClientCity(e.target.value)}
-                          placeholder="São Paulo"
-                          className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
-                        />
+                    {/* CEP AUTO LOOKUP FOR ADMIN WORKSTATION */}
+                    <div className="space-y-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                      <div className="flex items-center justify-between">
+                        <label className="text-slate-900 font-bold flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-[#204060]" />
+                          <span>Busca CEP & Endereço</span>
+                        </label>
+                        {isSearchingCepAdmin && (
+                          <span className="text-[10px] text-[#204060] font-bold animate-pulse">Buscando CEP...</span>
+                        )}
                       </div>
-                      <div>
-                        <label className="text-slate-700 font-bold block mb-1">UF</label>
-                        <input
-                          type="text"
-                          value={clientState}
-                          onChange={e => setClientState(e.target.value)}
-                          placeholder="SP"
-                          className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 uppercase"
-                        />
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <input
+                            type="text"
+                            value={clientCep}
+                            onChange={e => handleAdminCepChange(e.target.value)}
+                            placeholder="CEP"
+                            maxLength={9}
+                            className="w-full p-2 rounded-xl bg-white border border-slate-200 text-slate-900 font-bold"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <input
+                            type="text"
+                            value={clientAddress}
+                            onChange={e => setClientAddress(e.target.value)}
+                            placeholder="Logradouro / Rua"
+                            className="w-full p-2 rounded-xl bg-white border border-slate-200 text-slate-900"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <input
+                            type="text"
+                            value={clientNumber}
+                            onChange={e => setClientNumber(e.target.value)}
+                            placeholder="Número"
+                            className="w-full p-2 rounded-xl bg-white border border-slate-200 text-slate-900"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <input
+                            type="text"
+                            value={clientNeighborhood}
+                            onChange={e => setClientNeighborhood(e.target.value)}
+                            placeholder="Bairro"
+                            className="w-full p-2 rounded-xl bg-white border border-slate-200 text-slate-900"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="col-span-2">
+                          <input
+                            type="text"
+                            value={clientCity}
+                            onChange={e => setClientCity(e.target.value)}
+                            placeholder="Cidade"
+                            className="w-full p-2 rounded-xl bg-white border border-slate-200 text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            value={clientState}
+                            onChange={e => setClientState(e.target.value)}
+                            placeholder="UF"
+                            className="w-full p-2 rounded-xl bg-white border border-slate-200 text-slate-900 uppercase font-bold"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -1163,7 +1364,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* QUOTES TABLE */}
+            {/* QUOTES TABLE WITH DIRECT WHATSAPP ACTION BUTTON */}
             <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
@@ -1174,7 +1375,7 @@ export default function AdminPage() {
                     <th className="p-4">Itens</th>
                     <th className="p-4">Valor Total</th>
                     <th className="p-4">Status</th>
-                    <th className="p-4 text-right">Detalhes</th>
+                    <th className="p-4 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -1205,10 +1406,29 @@ export default function AdminPage() {
                           ))}
                         </select>
                       </td>
-                      <td className="p-4 text-right">
+                      <td className="p-4 text-right space-x-2">
+                        <button
+                          onClick={() => {
+                            const url = buildWhatsAppUrl(
+                              quote.client.whatsapp,
+                              quote.quote_number,
+                              quote.client.name,
+                              quote.client.company,
+                              quote.items,
+                              quote.total_amount,
+                              quote.client
+                            );
+                            window.open(url, '_blank');
+                          }}
+                          className="p-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold"
+                          title="Enviar via WhatsApp"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => setSelectedQuoteDetail(quote)}
                           className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                          title="Ver Detalhes"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -1268,18 +1488,28 @@ export default function AdminPage() {
 
       {/* CREATE / EDIT CATEGORY MODAL */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-md bg-white p-6 rounded-3xl border border-slate-200 space-y-4 my-8 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="font-extrabold text-slate-900 text-lg">
+        <div
+          onClick={() => setIsCategoryModalOpen(false)}
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="relative w-full max-w-md max-h-[88vh] bg-white rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+          >
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0">
+              <h3 className="font-extrabold text-slate-900 text-base">
                 {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
               </h3>
-              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-slate-700">
-                <X className="w-5 h-5" />
+              <button
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="p-1.5 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs border border-slate-300 transition-all flex items-center gap-1 shadow-sm"
+              >
+                <span className="uppercase text-[10px]">FECHAR</span>
+                <X className="w-4 h-4 text-slate-800" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCategory} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveCategory} className="p-6 overflow-y-auto space-y-3 text-xs flex-1 no-scrollbar">
               <div>
                 <label className="text-slate-700 font-bold block mb-1">Nome da Categoria *</label>
                 <input
@@ -1340,11 +1570,87 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* CREATE / EDIT GLASS COLOR MODAL */}
+      {isColorModalOpen && (
+        <div
+          onClick={() => setIsColorModalOpen(false)}
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="relative w-full max-w-md max-h-[88vh] bg-white rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+          >
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0">
+              <h3 className="font-extrabold text-slate-900 text-base">
+                {editingColor ? 'Editar Cor do Vidro' : 'Cadastrar Nova Cor'}
+              </h3>
+              <button
+                onClick={() => setIsColorModalOpen(false)}
+                className="p-1.5 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs border border-slate-300 transition-all flex items-center gap-1 shadow-sm"
+              >
+                <span className="uppercase text-[10px]">FECHAR</span>
+                <X className="w-4 h-4 text-slate-800" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveColor} className="p-6 overflow-y-auto space-y-3 text-xs flex-1 no-scrollbar">
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Nome da Cor *</label>
+                <input
+                  name="name"
+                  required
+                  defaultValue={editingColor?.name || ''}
+                  placeholder="Ex: Verde Esmeralda, Rosa Quartz"
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Código de Cor Hexadecimal (#HEX) *</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    name="hex"
+                    type="color"
+                    defaultValue={editingColor?.hex || '#059669'}
+                    className="w-12 h-10 rounded-lg cursor-pointer border border-slate-300 p-0.5 bg-white"
+                  />
+                  <input
+                    name="hex_text"
+                    type="text"
+                    defaultValue={editingColor?.hex || '#059669'}
+                    placeholder="#059669"
+                    className="flex-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono font-bold uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 font-bold">
+                <input type="checkbox" id="colorActive" name="is_active" defaultChecked={editingColor?.is_active ?? true} className="w-4 h-4 accent-[#204060]" />
+                <label htmlFor="colorActive" className="cursor-pointer">Ativar para Seleção no Catálogo</label>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-xl brand-gradient-bg font-extrabold text-sm shadow-md mt-4 text-white uppercase tracking-wider"
+              >
+                SALVAR COR DO VIDRO
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* SUCCESSFUL ADMIN GENERATED QUOTE MODAL */}
       {generatedQuoteSuccess && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-lg bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-6 shadow-2xl">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center mx-auto text-emerald-600">
+        <div
+          onClick={() => setGeneratedQuoteSuccess(null)}
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="relative w-full max-w-lg max-h-[88vh] bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 text-center space-y-5 shadow-2xl flex flex-col overflow-y-auto no-scrollbar"
+          >
+            <div className="w-16 h-16 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center mx-auto text-emerald-600 shrink-0">
               <CheckCircle2 className="w-10 h-10" />
             </div>
 
@@ -1376,7 +1682,8 @@ export default function AdminPage() {
                     generatedQuoteSuccess.client.name,
                     generatedQuoteSuccess.client.company,
                     generatedQuoteSuccess.items,
-                    generatedQuoteSuccess.total_amount
+                    generatedQuoteSuccess.total_amount,
+                    generatedQuoteSuccess.client
                   );
                   window.open(url, '_blank');
                 }}
@@ -1400,20 +1707,32 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* CREATE / EDIT PRODUCT MODAL WITH COLOR & GOLD RIM OPTIONS */}
+      {/* CREATE / EDIT PRODUCT MODAL WITH FULL SCREEN FIT (STICKY HEADER & SCROLLABLE BODY) */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-xl bg-white p-6 rounded-3xl border border-slate-200 space-y-4 my-8 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="font-extrabold text-slate-900 text-lg">
+        <div
+          onClick={() => setIsProductModalOpen(false)}
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="relative w-full max-w-xl max-h-[88vh] bg-white rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+          >
+            {/* STICKY TOP BAR */}
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0">
+              <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">
                 {editingProduct ? 'Editar Produto' : 'Cadastrar Novo Produto'}
               </h3>
-              <button onClick={() => setIsProductModalOpen(false)} className="text-slate-400 hover:text-slate-700">
-                <X className="w-5 h-5" />
+              <button
+                onClick={() => setIsProductModalOpen(false)}
+                className="p-1.5 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs border border-slate-300 transition-all flex items-center gap-1 shadow-sm"
+              >
+                <span className="uppercase text-[10px]">FECHAR</span>
+                <X className="w-4 h-4 text-slate-800" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="space-y-3 text-xs">
+            {/* SCROLLABLE FORM BODY */}
+            <form onSubmit={handleSaveProduct} className="p-6 overflow-y-auto space-y-4 text-xs flex-1 no-scrollbar">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-slate-700 font-bold block mb-1">SKU / Código *</label>
@@ -1478,23 +1797,24 @@ export default function AdminPage() {
                   <span>Cores Disponíveis do Vidro para Este Produto:</span>
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
-                  {availableColorOptions.map((c) => {
-                    const checked = formColors.includes(c);
+                  {glassColors.map((c) => {
+                    const checked = formColors.includes(c.name);
                     return (
-                      <label key={c} className="flex items-center gap-2 cursor-pointer text-[11px] font-bold text-slate-700">
+                      <label key={c.id} className="flex items-center gap-2 cursor-pointer text-[11px] font-bold text-slate-700">
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setFormColors(prev => [...prev, c]);
+                              setFormColors(prev => [...prev, c.name]);
                             } else {
-                              setFormColors(prev => prev.filter(item => item !== c));
+                              setFormColors(prev => prev.filter(item => item !== c.name));
                             }
                           }}
                           className="w-4 h-4 accent-[#204060] rounded"
                         />
-                        <span>{c}</span>
+                        <span className="w-3.5 h-3.5 rounded-full border shrink-0" style={{ backgroundColor: c.hex }} />
+                        <span className="truncate">{c.name}</span>
                       </label>
                     );
                   })}
@@ -1577,61 +1897,100 @@ export default function AdminPage() {
 
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-xl brand-gradient-bg font-extrabold text-sm shadow-md mt-4 text-white uppercase tracking-wider"
+                className="w-full py-4 rounded-2xl brand-gradient-bg font-extrabold text-sm shadow-xl mt-4 text-white uppercase tracking-wider"
               >
-                Salvar Produto
+                SALVAR PRODUTO
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* QUOTE DETAIL MODAL */}
+      {/* QUOTE DETAIL MODAL WITH DIRECT WHATSAPP BUTTON */}
       {selectedQuoteDetail && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-xl bg-white p-6 rounded-3xl border border-slate-200 space-y-4 my-8 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div
+          onClick={() => setSelectedQuoteDetail(null)}
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="relative w-full max-w-xl max-h-[88vh] bg-white rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+          >
+            {/* STICKY TOP BAR */}
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0">
               <div>
                 <span className="text-[10px] font-extrabold text-[#204060] uppercase">DETALHES DO ORÇAMENTO</span>
-                <h3 className="font-extrabold text-slate-900 text-lg">N° {selectedQuoteDetail.quote_number}</h3>
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">N° {selectedQuoteDetail.quote_number}</h3>
               </div>
-              <button onClick={() => setSelectedQuoteDetail(null)} className="text-slate-400 hover:text-slate-700">
-                <X className="w-5 h-5" />
+              <button
+                onClick={() => setSelectedQuoteDetail(null)}
+                className="p-1.5 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs border border-slate-300 transition-all flex items-center gap-1 shadow-sm"
+              >
+                <span className="uppercase text-[10px]">FECHAR</span>
+                <X className="w-4 h-4 text-slate-800" />
               </button>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-              <div className="grid grid-cols-2 gap-2 text-slate-700">
-                <div><strong className="text-slate-900">Cliente:</strong> {selectedQuoteDetail.client.name}</div>
-                <div><strong className="text-slate-900">Empresa:</strong> {selectedQuoteDetail.client.company}</div>
-                <div><strong className="text-slate-900">WhatsApp:</strong> {selectedQuoteDetail.client.whatsapp}</div>
-                <div><strong className="text-slate-900">E-mail:</strong> {selectedQuoteDetail.client.email}</div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-bold text-slate-900 text-xs">Itens Solicitados:</h4>
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {selectedQuoteDetail.items.map((item, idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-slate-50 text-xs flex items-center justify-between border border-slate-100">
-                    <div>
-                      <span className="font-bold text-slate-900 block">{item.product.name}</span>
-                      <span className="text-[10px] text-slate-500 font-medium">
-                        Qtd: {item.quantity} un. | Cor: {item.selectedColor || 'Padrão'}
-                        {item.hasGoldRim ? ' ✨ Borda Dourada' : ''}
-                      </span>
+            {/* SCROLLABLE BODY CONTENT */}
+            <div className="p-6 overflow-y-auto space-y-4 text-xs flex-1 no-scrollbar">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
+                  <div><strong className="text-slate-900">Cliente:</strong> {selectedQuoteDetail.client.name}</div>
+                  <div><strong className="text-slate-900">Empresa:</strong> {selectedQuoteDetail.client.company}</div>
+                  <div><strong className="text-slate-900">WhatsApp:</strong> {selectedQuoteDetail.client.whatsapp}</div>
+                  <div><strong className="text-slate-900">E-mail:</strong> {selectedQuoteDetail.client.email}</div>
+                  {selectedQuoteDetail.client.cep && (
+                    <div className="sm:col-span-2 pt-1 border-t border-slate-200 text-[11px]">
+                      <strong className="text-slate-900">Endereço de Entrega:</strong>{' '}
+                      {selectedQuoteDetail.client.address ? `${selectedQuoteDetail.client.address}, N° ${selectedQuoteDetail.client.number || 'S/N'}` : ''}{' '}
+                      {selectedQuoteDetail.client.neighborhood ? `- ${selectedQuoteDetail.client.neighborhood}` : ''} - {selectedQuoteDetail.client.city}/{selectedQuoteDetail.client.state} (CEP: {selectedQuoteDetail.client.cep})
                     </div>
-                    <span className="font-extrabold text-slate-900">{formatCurrency(item.lineSubtotal)}</span>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
-            </div>
 
-            <div className="pt-3 border-t border-slate-200 flex items-center justify-between font-extrabold text-sm text-slate-900">
-              <span>Valor Total:</span>
-              <span className="text-[#204060] text-base">{formatCurrency(selectedQuoteDetail.total_amount)}</span>
-            </div>
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900 text-xs">Itens Solicitados:</h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {selectedQuoteDetail.items.map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-slate-50 text-xs flex items-center justify-between border border-slate-100">
+                      <div>
+                        <span className="font-bold text-slate-900 block">{item.product.name}</span>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          Qtd: {item.quantity} un. | Cor: {item.selectedColor || 'Padrão'}
+                          {item.hasGoldRim ? ' ✨ Borda Dourada' : ''}
+                        </span>
+                      </div>
+                      <span className="font-extrabold text-slate-900">{formatCurrency(item.lineSubtotal)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-between font-extrabold text-sm text-slate-900">
+                <span>Valor Total:</span>
+                <span className="text-[#204060] text-base">{formatCurrency(selectedQuoteDetail.total_amount)}</span>
+              </div>
+
+              <button
+                onClick={() => {
+                  const url = buildWhatsAppUrl(
+                    selectedQuoteDetail.client.whatsapp,
+                    selectedQuoteDetail.quote_number,
+                    selectedQuoteDetail.client.name,
+                    selectedQuoteDetail.client.company,
+                    selectedQuoteDetail.items,
+                    selectedQuoteDetail.total_amount,
+                    selectedQuoteDetail.client
+                  );
+                  window.open(url, '_blank');
+                }}
+                className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-lg hover:scale-[1.01] transition-transform flex items-center justify-center gap-2.5 uppercase tracking-wider mt-4"
+              >
+                <Send className="w-5 h-5 text-white" />
+                <span>ENVIAR ORÇAMENTO VIA WHATSAPP</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { Product, Quote, AnalyticsEvent, ClientData, CartItem, QuoteStatus, Category } from '@/types';
-import { INITIAL_PRODUCTS, INITIAL_CATEGORIES } from './mockData';
+import { Product, Quote, AnalyticsEvent, ClientData, CartItem, QuoteStatus, Category, GlassColorOption } from '@/types';
+import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_GLASS_COLORS } from './mockData';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -19,6 +19,95 @@ export function generateUUID(): string {
   }
   const hex = Date.now().toString(16).padStart(12, '0');
   return `c0000000-0000-4000-8000-${hex}`;
+}
+
+// GLASS COLORS PERSISTENCE DRIVER
+export async function getColorsFromStore(): Promise<GlassColorOption[]> {
+  if (typeof window === 'undefined') return INITIAL_GLASS_COLORS;
+
+  let localColors: GlassColorOption[] = INITIAL_GLASS_COLORS;
+  const stored = localStorage.getItem('toque_ideal_glass_colors');
+  if (stored) {
+    try {
+      localColors = JSON.parse(stored);
+    } catch (e) {}
+  } else {
+    localStorage.setItem('toque_ideal_glass_colors', JSON.stringify(INITIAL_GLASS_COLORS));
+  }
+
+  try {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('glass_colors')
+        .select('*');
+
+      if (!error && data && data.length > 0) {
+        const mergedMap = new Map<string, GlassColorOption>();
+        (data as GlassColorOption[]).forEach(c => mergedMap.set(c.id || c.name, c));
+        localColors.forEach(c => {
+          if (!mergedMap.has(c.id || c.name)) {
+            mergedMap.set(c.id || c.name, c);
+          }
+        });
+        const merged = Array.from(mergedMap.values());
+        localStorage.setItem('toque_ideal_glass_colors', JSON.stringify(merged));
+        return merged;
+      }
+    }
+  } catch (e) {
+    console.warn('Falling back to local storage for glass colors');
+  }
+
+  return localColors;
+}
+
+export async function saveColorToStore(colorOption: GlassColorOption): Promise<GlassColorOption> {
+  if (!colorOption.id) {
+    colorOption.id = generateUUID();
+  }
+
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('toque_ideal_glass_colors');
+    let list: GlassColorOption[] = stored ? JSON.parse(stored) : INITIAL_GLASS_COLORS;
+    const existingIdx = list.findIndex(c => c.id === colorOption.id || c.name === colorOption.name);
+    if (existingIdx >= 0) {
+      list[existingIdx] = colorOption;
+    } else {
+      list.push(colorOption);
+    }
+    localStorage.setItem('toque_ideal_glass_colors', JSON.stringify(list));
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('glass_colors').upsert({
+        id: colorOption.id,
+        name: colorOption.name,
+        hex: colorOption.hex,
+        is_active: colorOption.is_active,
+      });
+    } catch (e) {}
+  }
+
+  return colorOption;
+}
+
+export async function deleteColorFromStore(colorId: string): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('toque_ideal_glass_colors');
+    if (stored) {
+      const list: GlassColorOption[] = JSON.parse(stored);
+      const updated = list.filter(c => c.id !== colorId);
+      localStorage.setItem('toque_ideal_glass_colors', JSON.stringify(updated));
+    }
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('glass_colors').delete().eq('id', colorId);
+    } catch (e) {}
+  }
+  return true;
 }
 
 // CATEGORY PERSISTENCE DRIVER
@@ -67,7 +156,6 @@ export async function saveCategoryToStore(category: Category): Promise<Category>
     category.id = generateUUID();
   }
 
-  // 1. Always update local storage first so changes are immediate
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('toque_ideal_categories');
     let list: Category[] = stored ? JSON.parse(stored) : INITIAL_CATEGORIES;
@@ -80,7 +168,6 @@ export async function saveCategoryToStore(category: Category): Promise<Category>
     localStorage.setItem('toque_ideal_categories', JSON.stringify(list));
   }
 
-  // 2. Sync to Supabase in background
   if (isSupabaseConfigured && supabase) {
     try {
       await supabase.from('categories').upsert({
@@ -163,7 +250,6 @@ export async function saveProductToStore(product: Product): Promise<Product> {
     product.id = generateUUID();
   }
 
-  // 1. Always update local storage first
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('toque_ideal_products');
     let list: Product[] = stored ? JSON.parse(stored) : INITIAL_PRODUCTS;
@@ -176,7 +262,6 @@ export async function saveProductToStore(product: Product): Promise<Product> {
     localStorage.setItem('toque_ideal_products', JSON.stringify(list));
   }
 
-  // 2. Sync to Supabase in background
   if (isSupabaseConfigured && supabase) {
     try {
       await supabase.from('products').upsert({
@@ -247,9 +332,7 @@ export async function getQuotesFromStore(): Promise<Quote[]> {
 
       if (!error && data) {
         const mergedMap = new Map<string, Quote>();
-        // Add Supabase items
         (data as Quote[]).forEach(q => mergedMap.set(q.id || q.quote_number, q));
-        // Preserve all local quotes that aren't in Supabase
         localQuotes.forEach(q => {
           const key = q.id || q.quote_number;
           if (!mergedMap.has(key)) {
@@ -290,7 +373,6 @@ export async function saveQuoteToStore(
     created_at: new Date().toISOString(),
   };
 
-  // 1. Always update local storage first
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('toque_ideal_quotes');
     const currentQuotes: Quote[] = stored ? JSON.parse(stored) : [];
@@ -298,7 +380,6 @@ export async function saveQuoteToStore(
     localStorage.setItem('toque_ideal_quotes', JSON.stringify(updated));
   }
 
-  // 2. Sync to Supabase in background
   if (isSupabaseConfigured && supabase) {
     try {
       await supabase.from('quotes').insert({

@@ -15,8 +15,7 @@ import {
   CheckCircle2,
   Sparkles,
   QrCode,
-  Lock,
-  Palette,
+  Search,
 } from 'lucide-react';
 
 export const QuoteModal: React.FC = () => {
@@ -33,13 +32,37 @@ export const QuoteModal: React.FC = () => {
   const [company, setCompany] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [email, setEmail] = useState('');
+  const [cep, setCep] = useState('');
+  const [address, setAddress] = useState('');
+  const [number, setNumber] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('SP');
   const [notes, setNotes] = useState('');
+  const [isSearchingCep, setIsSearchingCep] = useState(false);
 
   const [submittedQuoteNumber, setSubmittedQuoteNumber] = useState<string | null>(null);
 
   if (!isQuoteModalOpen) return null;
+
+  const handleCepChange = async (val: string) => {
+    setCep(val);
+    const clean = val.replace(/\D/g, '');
+    if (clean.length === 8) {
+      setIsSearchingCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          setAddress(data.logradouro || '');
+          setNeighborhood(data.bairro || '');
+          setCity(data.localidade || '');
+          setState(data.uf || '');
+        }
+      } catch (e) {}
+      setIsSearchingCep(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +73,10 @@ export const QuoteModal: React.FC = () => {
       company,
       whatsapp,
       email,
+      cep,
+      address,
+      number,
+      neighborhood,
       city,
       state,
       notes,
@@ -76,13 +103,26 @@ export const QuoteModal: React.FC = () => {
 
   const handleOpenWhatsApp = () => {
     if (!submittedQuoteNumber) return;
+    const clientData = {
+      name,
+      company,
+      whatsapp,
+      email,
+      cep,
+      address,
+      number,
+      neighborhood,
+      city,
+      state,
+    };
     const url = buildWhatsAppUrl(
       whatsapp,
       submittedQuoteNumber,
       name,
       company,
       cartItems,
-      cartTotals.totalAmount
+      cartTotals.totalAmount,
+      clientData
     );
     window.open(url, '_blank');
     logAnalyticsEvent('whatsapp_clicked', undefined, undefined, { quoteNum: submittedQuoteNumber });
@@ -133,6 +173,12 @@ export const QuoteModal: React.FC = () => {
                 <span className="text-slate-600">Cliente / Empresa:</span>
                 <span className="font-bold text-slate-900">{name} ({company})</span>
               </div>
+              {cep && (
+                <div className="flex justify-between font-medium">
+                  <span className="text-slate-600">Endereço de Entrega:</span>
+                  <span className="font-bold text-slate-900">{address ? `${address}, N° ${number || 'S/N'}` : ''} - {city}/{state} (CEP: {cep})</span>
+                </div>
+              )}
               <div className="flex justify-between font-medium">
                 <span className="text-slate-600">Total de Peças:</span>
                 <span className="font-bold text-slate-900">{cartTotals.totalUnits} un.</span>
@@ -155,14 +201,8 @@ export const QuoteModal: React.FC = () => {
 
               <button
                 onClick={() => {
-                  const url = buildWhatsAppUrl(
-                    whatsapp,
-                    submittedQuoteNumber,
-                    name,
-                    company,
-                    cartItems,
-                    cartTotals.totalAmount
-                  );
+                  const clientData = { name, company, whatsapp, email, cep, address, number, neighborhood, city, state };
+                  const url = buildWhatsAppUrl(whatsapp, submittedQuoteNumber, name, company, cartItems, cartTotals.totalAmount, clientData);
                   openQRModal(
                     `Orçamento N° ${submittedQuoteNumber}`,
                     url,
@@ -197,7 +237,7 @@ export const QuoteModal: React.FC = () => {
               <span className="font-extrabold text-[#204060] uppercase tracking-wider block text-[10px]">
                 RESUMO DO SEU PEDIDO ({cartTotals.totalUnits} PEÇAS)
               </span>
-              <div className="max-h-32 overflow-y-auto space-y-2 pr-1">
+              <div className="max-h-28 overflow-y-auto space-y-2 pr-1">
                 {cartItems.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between text-slate-700 font-medium">
                     <span className="truncate max-w-[240px]">
@@ -217,7 +257,7 @@ export const QuoteModal: React.FC = () => {
               </div>
             </div>
 
-            {/* FORM */}
+            {/* FORM WITH CEP AUTO SEARCH */}
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="text-slate-700 font-bold block mb-1">Nome Completo *</label>
@@ -229,7 +269,7 @@ export const QuoteModal: React.FC = () => {
                     value={name}
                     onChange={e => setName(e.target.value)}
                     placeholder="Ex: Dra. Mariana Costa"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-[#204060]"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-[#204060]"
                   />
                 </div>
               </div>
@@ -244,7 +284,7 @@ export const QuoteModal: React.FC = () => {
                     value={company}
                     onChange={e => setCompany(e.target.value)}
                     placeholder="Ex: Costa & Associados Arquitetura"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-[#204060]"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-[#204060]"
                   />
                 </div>
               </div>
@@ -260,7 +300,7 @@ export const QuoteModal: React.FC = () => {
                       value={whatsapp}
                       onChange={e => setWhatsapp(e.target.value)}
                       placeholder="(11) 96776-7364"
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-[#204060]"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-[#204060]"
                     />
                   </div>
                 </div>
@@ -275,32 +315,86 @@ export const QuoteModal: React.FC = () => {
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       placeholder="contato@empresa.com.br"
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-[#204060]"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-[#204060]"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label className="text-slate-700 font-bold block mb-1">Cidade</label>
-                  <input
-                    type="text"
-                    value={city}
-                    onChange={e => setCity(e.target.value)}
-                    placeholder="São Paulo"
-                    className="w-full px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
-                  />
+              {/* CEP AUTO SEARCH & ADDRESS FIELDS */}
+              <div className="space-y-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-900 font-extrabold text-xs flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-[#204060]" />
+                    <span>CEP / Endereço de Entrega</span>
+                  </label>
+                  {isSearchingCep && (
+                    <span className="text-[10px] text-[#204060] font-bold animate-pulse">Buscando CEP...</span>
+                  )}
                 </div>
-                <div>
-                  <label className="text-slate-700 font-bold block mb-1">UF</label>
-                  <input
-                    type="text"
-                    value={state}
-                    onChange={e => setState(e.target.value)}
-                    placeholder="SP"
-                    className="w-full px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 uppercase"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <input
+                      type="text"
+                      value={cep}
+                      onChange={e => handleCepChange(e.target.value)}
+                      placeholder="CEP (ex: 01001-000)"
+                      maxLength={9}
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-900 font-bold"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={e => setAddress(e.target.value)}
+                      placeholder="Rua / Logradouro"
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <input
+                      type="text"
+                      value={number}
+                      onChange={e => setNumber(e.target.value)}
+                      placeholder="Número"
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      value={neighborhood}
+                      onChange={e => setNeighborhood(e.target.value)}
+                      placeholder="Bairro"
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={e => setCity(e.target.value)}
+                      placeholder="Cidade"
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={state}
+                      onChange={e => setState(e.target.value)}
+                      placeholder="UF"
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-900 uppercase font-bold"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -311,7 +405,7 @@ export const QuoteModal: React.FC = () => {
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="Ex: Prazo de entrega desejado ou gravação personalizada."
-                  className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                 />
               </div>
 

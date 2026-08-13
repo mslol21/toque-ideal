@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { CartItem } from '@/types';
+import { CartItem, ClientData } from '@/types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -53,20 +53,30 @@ export function buildWhatsAppUrl(
   clientName: string,
   companyName: string,
   items: CartItem[],
-  totalAmount: number
+  totalAmount: number,
+  clientData?: ClientData
 ): string {
   const cleanPhone = phoneNumber.replace(/\D/g, '');
-  // Número oficial real do site Toque Ideal: (11) 96776-7364
+  // Target phone number: if client phone is valid, use it; otherwise official Toque Ideal sales line: (11) 96776-7364
   const targetPhone = cleanPhone.length >= 10 ? cleanPhone : '5511967767364';
 
   let message = `*SOLICITAÇÃO DE ORÇAMENTO - TOQUE IDEAL*\n`;
   message += `*Orçamento N°:* ${quoteNumber}\n`;
   message += `*Cliente:* ${clientName}\n`;
-  message += `*Empresa:* ${companyName}\n\n`;
-  message += `*ITENS SELECIONADOS NO SHOWROOM:*\n`;
+  message += `*Empresa:* ${companyName}\n`;
+
+  if (clientData?.email) {
+    message += `*E-mail:* ${clientData.email}\n`;
+  }
+
+  if (clientData?.cep || clientData?.city) {
+    message += `*Endereço/Local:* ${clientData.address ? clientData.address + ', ' : ''}${clientData.number ? 'N° ' + clientData.number + ' - ' : ''}${clientData.neighborhood ? clientData.neighborhood + ' - ' : ''}${clientData.city}/${clientData.state}${clientData.cep ? ' (CEP: ' + clientData.cep + ')' : ''}\n`;
+  }
+
+  message += `\n*ITENS SELECIONADOS NO SHOWROOM:*\n`;
 
   items.forEach((item, index) => {
-    message += `${index + 1}. *${item.product.name}* (Cód: ${item.product.sku})\n`;
+    message += `${index + 1}. *${item.product.name}* (SKU: ${item.product.sku})\n`;
     message += `   • Qtd: ${item.quantity} un.\n`;
     if (item.selectedColor) {
       message += `   • Cor do Vidro: *${item.selectedColor}*\n`;

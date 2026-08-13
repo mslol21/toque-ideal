@@ -8,17 +8,12 @@ export interface Category {
 }
 
 export type PersonalizationOption =
-  | 'Gravação Laser'
   | 'Gravação Laser no Vidro'
-  | 'Impressão UV Color'
-  | 'Serigrafia Premium'
-  | 'Metalização Dourada'
-  | 'Metalização Prateada'
-  | 'Relevo 3D Acrílico'
   | 'Lapidação Especial'
+  | 'Filete em Ouro 24k / Borda Dourada'
+  | 'Embalagem Especial de Presente'
   | 'Placa de Inox Gravada a Laser'
-  | 'Base Personalizada'
-  | 'Embalagem Especial de Presente';
+  | 'Base Personalizada';
 
 export interface ProductImage {
   id: string;
@@ -44,6 +39,8 @@ export interface Product {
   is_featured: boolean;
   is_launch: boolean;
   custom_options: PersonalizationOption[];
+  available_colors?: string[]; // Opções de Cores do Vidro
+  has_gold_rim_option?: boolean; // Opção de Borda Dourada
   images: string[];
   specs?: {
     material?: string;
@@ -59,6 +56,8 @@ export interface CartItem {
   product: Product;
   quantity: number;
   selectedOption: PersonalizationOption;
+  selectedColor?: string; // Cor selecionada pelo cliente
+  hasGoldRim?: boolean; // Borda dourada ativada
   customNotes?: string;
   unitPrice: number;
   lineSubtotal: number;

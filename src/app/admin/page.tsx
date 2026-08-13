@@ -49,6 +49,7 @@ import {
   Home,
   Gift,
   Star,
+  Palette,
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -79,6 +80,8 @@ export default function AdminPage() {
   const [selectedProductToAdd, setSelectedProductToAdd] = useState<string>('');
   const [addItemQty, setAddItemQty] = useState<number>(10);
   const [addItemOption, setAddItemOption] = useState<PersonalizationOption>('Gravação Laser no Vidro');
+  const [addItemColor, setAddItemColor] = useState<string>('Verde Esmeralda');
+  const [addItemGoldRim, setAddItemGoldRim] = useState<boolean>(true);
   const [addItemNotes, setAddItemNotes] = useState<string>('');
 
   const [clientName, setClientName] = useState('');
@@ -183,6 +186,8 @@ export default function AdminPage() {
       product: prod,
       quantity,
       selectedOption: addItemOption,
+      selectedColor: addItemColor,
+      hasGoldRim: addItemGoldRim,
       customNotes: addItemNotes,
       unitPrice,
       lineSubtotal,
@@ -366,7 +371,9 @@ export default function AdminPage() {
       is_active: formData.get('is_active') === 'on',
       is_featured: formData.get('is_featured') === 'on',
       is_launch: formData.get('is_launch') === 'on',
-      custom_options: ['Gravação Laser no Vidro', 'Lapidação Especial', 'Embalagem Especial de Presente'],
+      custom_options: ['Gravação Laser no Vidro', 'Lapidação Especial', 'Filete em Ouro 24k / Borda Dourada', 'Embalagem Especial de Presente'],
+      available_colors: ['Verde Esmeralda', 'Âmbar Dourado', 'Azul Cobalto', 'Fumê Cristal', 'Incolor / Transparente', 'Rubi Imperial'],
+      has_gold_rim_option: true,
       images: [
         (formData.get('image_url') as string) || 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800'
       ],
@@ -711,7 +718,7 @@ export default function AdminPage() {
                       </select>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="text-slate-700 font-bold block mb-1">Quantidade</label>
                         <input
@@ -724,7 +731,23 @@ export default function AdminPage() {
                       </div>
 
                       <div>
-                        <label className="text-slate-700 font-bold block mb-1">Técnica de Acabamento</label>
+                        <label className="text-slate-700 font-bold block mb-1">Cor do Vidro</label>
+                        <select
+                          value={addItemColor}
+                          onChange={e => setAddItemColor(e.target.value)}
+                          className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold"
+                        >
+                          <option value="Verde Esmeralda">Verde Esmeralda</option>
+                          <option value="Âmbar Dourado">Âmbar Dourado</option>
+                          <option value="Azul Cobalto">Azul Cobalto</option>
+                          <option value="Fumê Cristal">Fumê Cristal</option>
+                          <option value="Incolor / Transparente">Incolor / Transparente</option>
+                          <option value="Rubi Imperial">Rubi Imperial</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 font-bold block mb-1">Acabamento</label>
                         <select
                           value={addItemOption}
                           onChange={e => setAddItemOption(e.target.value as PersonalizationOption)}
@@ -737,6 +760,20 @@ export default function AdminPage() {
                           <option value="Base Personalizada">Base Personalizada</option>
                         </select>
                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                      <input
+                        type="checkbox"
+                        id="goldRimCheck"
+                        checked={addItemGoldRim}
+                        onChange={e => setAddItemGoldRim(e.target.checked)}
+                        className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                      />
+                      <label htmlFor="goldRimCheck" className="text-xs font-extrabold text-amber-950 cursor-pointer flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Aplicar Filete em Ouro 24k / Borda Dourada</span>
+                      </label>
                     </div>
 
                     <div>
@@ -788,7 +825,7 @@ export default function AdminPage() {
                             <div>
                               <span className="font-bold text-slate-900 block">{item.product.name}</span>
                               <span className="text-[10px] text-[#204060] font-semibold block">
-                                {item.selectedOption} {item.customNotes ? `("${item.customNotes}")` : ''}
+                                Cor: {item.selectedColor || 'Padrão'} {item.hasGoldRim ? ' ✨ Borda Dourada' : ''}
                               </span>
                               <span className="text-[10px] text-slate-500 font-mono">
                                 SKU: {item.product.sku} | Unitário: {formatCurrency(item.unitPrice)}
@@ -1513,7 +1550,10 @@ export default function AdminPage() {
                   <div key={idx} className="p-3 rounded-xl bg-slate-50 text-xs flex items-center justify-between border border-slate-100">
                     <div>
                       <span className="font-bold text-slate-900 block">{item.product.name}</span>
-                      <span className="text-[10px] text-slate-500 font-medium">Qtd: {item.quantity} un. | Opção: {item.selectedOption}</span>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        Qtd: {item.quantity} un. | Cor: {item.selectedColor || 'Padrão'}
+                        {item.hasGoldRim ? ' ✨ Borda Dourada' : ''}
+                      </span>
                     </div>
                     <span className="font-extrabold text-slate-900">{formatCurrency(item.lineSubtotal)}</span>
                   </div>

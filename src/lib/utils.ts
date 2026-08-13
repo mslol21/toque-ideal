@@ -67,7 +67,14 @@ export function buildWhatsAppUrl(
 
   items.forEach((item, index) => {
     message += `${index + 1}. *${item.product.name}* (Cód: ${item.product.sku})\n`;
-    message += `   • Qtd: ${item.quantity} un. | Opção: ${item.selectedOption}\n`;
+    message += `   • Qtd: ${item.quantity} un.\n`;
+    if (item.selectedColor) {
+      message += `   • Cor do Vidro: *${item.selectedColor}*\n`;
+    }
+    if (item.hasGoldRim) {
+      message += `   • Acabamento: ✨ *Borda Dourada (Filete Ouro 24k)*\n`;
+    }
+    message += `   • Técnica: ${item.selectedOption}\n`;
     if (item.customNotes) {
       message += `   • Obs: "${item.customNotes}"\n`;
     }

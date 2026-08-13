@@ -8,7 +8,7 @@ import { Logo } from './Logo';
 export const Header: React.FC = () => {
   const {
     cartTotals,
-    setIsCartOpen,
+    setIsQuoteDrawerOpen,
     isExhibitionMode,
     toggleExhibitionMode,
     openQRModal,
@@ -96,7 +96,7 @@ export const Header: React.FC = () => {
 
           {/* SHOPPING CART BUTTON */}
           <button
-            onClick={() => setIsCartOpen(true)}
+            onClick={() => setIsQuoteDrawerOpen(true)}
             className="relative flex items-center gap-2 px-4 py-2.5 rounded-xl brand-gradient-bg font-extrabold text-xs shadow-md hover:shadow-lg transition-all duration-300 group text-white uppercase tracking-wider"
           >
             <ShoppingBag className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />

@@ -6,7 +6,7 @@ import { ChevronDown } from 'lucide-react';
 import { useShowroom } from '@/lib/store';
 
 export const HeroSection: React.FC = () => {
-  const { setIsCartOpen } = useShowroom();
+  const { setIsQuoteDrawerOpen } = useShowroom();
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
@@ -72,7 +72,7 @@ export const HeroSection: React.FC = () => {
         >
           {/* PRIMARY BUTTON: SOLID NAVY BLUE */}
           <button
-            onClick={() => setIsCartOpen(true)}
+            onClick={() => setIsQuoteDrawerOpen(true)}
             className="w-full sm:w-auto px-8 py-4 rounded-xl bg-[#204060] hover:bg-[#285078] text-white font-extrabold text-xs tracking-wider uppercase shadow-xl hover:scale-105 transition-all duration-300 border border-[#204060]"
           >
             SOLICITAR ORÇAMENTO

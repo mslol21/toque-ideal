@@ -33,8 +33,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     sku: 'VDR-WAV-01',
     name: 'Centro de Mesa Sculpted Wave Verde 50cm',
     slug: 'centro-de-mesa-sculpted-wave-verde',
-    short_desc: 'Peça decorativa em vidro moldado artesanal com efeito ondulado verde esmeralda cristalino.',
-    description: 'Ícone da coleção Home Decor Toque Ideal. Este centro de mesa escultural é moldado a quente em vidro de alta espessura com tonalidade verde profundo, criando fluidez e elegância incomparáveis em mesas de jantar, recepções e aparadores.',
+    short_desc: 'Peça decorativa em vidro moldado artesanal com efeito ondulado cristalino.',
+    description: 'Ícone da coleção Home Decor Toque Ideal. Este centro de mesa escultural é moldado a quente em vidro de alta espessura, criando fluidez e elegância incomparáveis em mesas de jantar, recepções e aparadores.',
     price: 380.00,
     promo_price: 340.00,
     moq: 1,
@@ -43,7 +43,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_active: true,
     is_featured: true,
     is_launch: true,
-    custom_options: ['Lapidação Especial', 'Gravação Laser no Vidro', 'Embalagem Especial de Presente'],
+    custom_options: ['Lapidação Especial', 'Gravação Laser no Vidro', 'Filete em Ouro 24k / Borda Dourada', 'Embalagem Especial de Presente'],
+    available_colors: ['Verde Esmeralda', 'Âmbar Dourado', 'Azul Cobalto', 'Fumê Cristal', 'Incolor / Transparente', 'Rubi Imperial'],
+    has_gold_rim_option: true,
     images: [
       'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&q=80&w=800',
       'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800'
@@ -60,8 +62,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     sku: 'VDR-AMB-02',
     name: 'Escultura Flama Âmbar Lapidada 45cm',
     slug: 'escultura-flama-ambar-lapidada',
-    short_desc: 'Escultura imponente em vidro soprado cor âmbar com base de acrílico preto cristal.',
-    description: 'Destaque da ABCasa Fair. Uma peça artística rica em textura e nuances douradas que refrata a iluminação ambiente. Ideal para hotéis de luxo, escritórios de advocacia e residências de alto padrão.',
+    short_desc: 'Escultura imponente em vidro soprado com nuances refinadas e base de acrílico cristal.',
+    description: 'Destaque da ABCasa Fair. Uma peça artística rica em textura e nuances cromáticas que refrata a iluminação ambiente. Ideal para hotéis de luxo, escritórios de advocacia e residências de alto padrão.',
     price: 690.00,
     promo_price: 620.00,
     moq: 1,
@@ -70,7 +72,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_active: true,
     is_featured: true,
     is_launch: true,
-    custom_options: ['Placa de Inox Gravada a Laser', 'Base Personalizada', 'Lapidação Especial'],
+    custom_options: ['Placa de Inox Gravada a Laser', 'Base Personalizada', 'Lapidação Especial', 'Filete em Ouro 24k / Borda Dourada'],
+    available_colors: ['Âmbar Dourado', 'Verde Esmeralda', 'Azul Cobalto', 'Incolor / Transparente', 'Fumê Cristal'],
+    has_gold_rim_option: true,
     images: [
       'https://images.unsplash.com/photo-1581783342308-f792dbdd27c5?auto=format&fit=crop&q=80&w=800',
       'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=800'
@@ -85,9 +89,9 @@ export const INITIAL_PRODUCTS: Product[] = [
   {
     id: 'p0000000-0000-0000-0000-000000000003',
     sku: 'VDR-FOL-03',
-    name: 'Prato Decorativo de Vidro Moldado "Folha Esmeralda"',
-    slug: 'prato-decorativo-vidro-folha-esmeralda',
-    short_desc: 'Prato decorativo com relevo de folha natural em vidro verde de alta espessura.',
+    name: 'Prato Decorativo de Vidro Moldado "Folha"',
+    slug: 'prato-decorativo-vidro-folha',
+    short_desc: 'Prato decorativo com relevo de folha natural em vidro de alta espessura.',
     description: 'Objeto de arte com curvas orgânicas inspiradas na natureza. Produzido em técnica de termo-moldagem em matriz cerâmica, perfeito para composições de mesas de centro.',
     price: 290.00,
     promo_price: 260.00,
@@ -97,13 +101,15 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_active: true,
     is_featured: true,
     is_launch: false,
-    custom_options: ['Lapidação Especial', 'Gravação Laser no Vidro'],
+    custom_options: ['Lapidação Especial', 'Gravação Laser no Vidro', 'Filete em Ouro 24k / Borda Dourada'],
+    available_colors: ['Verde Esmeralda', 'Fumê Cristal', 'Incolor / Transparente', 'Âmbar Dourado', 'Rubi Imperial'],
+    has_gold_rim_option: true,
     images: [
       'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=800',
       'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800'
     ],
     specs: {
-      material: 'Vidro Termo-moldado Verde 10mm',
+      material: 'Vidro Termo-moldado 10mm',
       dimensions: 'Comprimento 48cm x Largura 28cm',
       weight: '2.800g',
       applications: ['Mesa de Centro', 'Aparadores', 'Projetos Arquitetônicos']
@@ -124,7 +130,9 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_active: true,
     is_featured: true,
     is_launch: true,
-    custom_options: ['Lapidação Especial', 'Embalagem Especial de Presente'],
+    custom_options: ['Lapidação Especial', 'Filete em Ouro 24k / Borda Dourada', 'Embalagem Especial de Presente'],
+    available_colors: ['Incolor / Transparente', 'Âmbar Dourado', 'Verde Esmeralda', 'Fumê Cristal', 'Azul Cobalto'],
+    has_gold_rim_option: true,
     images: [
       'https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?auto=format&fit=crop&q=80&w=800',
       'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&q=80&w=800'

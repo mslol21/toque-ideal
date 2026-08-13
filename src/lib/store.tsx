@@ -7,19 +7,26 @@ import { logAnalyticsEvent } from './supabase';
 
 interface ShowroomContextType {
   // Cart
-  cart: CartItem[];
-  addToCart: (product: Product, quantity?: number, selectedOption?: PersonalizationOption, customNotes?: string) => void;
-  removeFromCart: (index: number) => void;
-  updateQuantity: (index: number, quantity: number) => void;
+  cartItems: CartItem[];
+  addToCart: (
+    product: Product,
+    quantity?: number,
+    selectedOption?: PersonalizationOption,
+    selectedColor?: string,
+    hasGoldRim?: boolean,
+    customNotes?: string
+  ) => void;
+  removeFromCart: (productId: string) => void;
+  updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
-  isCartOpen: boolean;
-  setIsCartOpen: (open: boolean) => void;
+  isQuoteDrawerOpen: boolean;
+  setIsQuoteDrawerOpen: (open: boolean) => void;
 
   // Modals
   isQuoteModalOpen: boolean;
   setIsQuoteModalOpen: (open: boolean) => void;
-  selectedProductDetail: Product | null;
-  setSelectedProductDetail: (product: Product | null) => void;
+  selectedProduct: Product | null;
+  setSelectedProduct: (product: Product | null) => void;
   isQRModalOpen: boolean;
   setIsQRModalOpen: (open: boolean) => void;
   qrPayload: { title: string; url: string; subtitle?: string } | null;
@@ -47,12 +54,12 @@ const ShowroomContext = createContext<ShowroomContextType | null>(null);
 
 export function ShowroomProvider({ children }: { children: React.ReactNode }) {
   // Cart State
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isQuoteDrawerOpen, setIsQuoteDrawerOpen] = useState(false);
 
   // Modals State
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
-  const [selectedProductDetail, setSelectedProductDetail] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [qrPayload, setQrPayload] = useState<{ title: string; url: string; subtitle?: string } | null>(null);
 
@@ -71,7 +78,7 @@ export function ShowroomProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       const savedCart = localStorage.getItem('toque_ideal_cart');
       if (savedCart) {
-        try { setCart(JSON.parse(savedCart)); } catch (e) {}
+        try { setCartItems(JSON.parse(savedCart)); } catch (e) {}
       }
 
       const savedMode = localStorage.getItem('toque_ideal_exhibition_mode');
@@ -91,9 +98,9 @@ export function ShowroomProvider({ children }: { children: React.ReactNode }) {
   // Save Cart to LocalStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('toque_ideal_cart', JSON.stringify(cart));
+      localStorage.setItem('toque_ideal_cart', JSON.stringify(cartItems));
     }
-  }, [cart]);
+  }, [cartItems]);
 
   // Exhibition Idle Detection (30s timer)
   const resetIdleState = useCallback(() => {
@@ -113,7 +120,6 @@ export function ShowroomProvider({ children }: { children: React.ReactNode }) {
 
     const idleInterval = setInterval(() => {
       const elapsed = Date.now() - lastActivity;
-      // 30 segundos de inatividade aciona prompt no Modo Exposição
       if (elapsed > 30000 && !showIdlePrompt) {
         setShowIdlePrompt(true);
       }
@@ -130,14 +136,14 @@ export function ShowroomProvider({ children }: { children: React.ReactNode }) {
     let timeout: NodeJS.Timeout;
     if (showIdlePrompt) {
       timeout = setTimeout(() => {
-        setIsCartOpen(false);
+        setIsQuoteDrawerOpen(false);
         setIsQuoteModalOpen(false);
-        setSelectedProductDetail(null);
+        setSelectedProduct(null);
         setIsQRModalOpen(false);
         setSearchQuery('');
         setActiveCategory('all');
         setShowIdlePrompt(false);
-        setCart([]);
+        setCartItems([]);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }, 10000);
     }
@@ -149,15 +155,23 @@ export function ShowroomProvider({ children }: { children: React.ReactNode }) {
     product: Product,
     quantity?: number,
     selectedOption?: PersonalizationOption,
+    selectedColor?: string,
+    hasGoldRim?: boolean,
     customNotes?: string
   ) => {
     const qty = quantity || product.moq || 1;
-    const option = selectedOption || product.custom_options[0] || 'Gravação Laser';
+    const option = selectedOption || product.custom_options[0] || 'Gravação Laser no Vidro';
+    const color = selectedColor || (product.available_colors && product.available_colors[0]) || 'Incolor / Transparente';
+    const goldRim = hasGoldRim ?? Boolean(product.has_gold_rim_option);
     const unitPrice = product.promo_price || product.price;
 
-    setCart(prev => {
+    setCartItems(prev => {
       const existingIndex = prev.findIndex(
-        item => item.product.id === product.id && item.selectedOption === option
+        item =>
+          item.product.id === product.id &&
+          item.selectedOption === option &&
+          item.selectedColor === color &&
+          item.hasGoldRim === goldRim
       );
 
       if (existingIndex >= 0) {
@@ -178,6 +192,8 @@ export function ShowroomProvider({ children }: { children: React.ReactNode }) {
           product,
           quantity: qty,
           selectedOption: option,
+          selectedColor: color,
+          hasGoldRim: goldRim,
           customNotes,
           unitPrice,
           lineSubtotal: qty * unitPrice,
@@ -185,35 +201,37 @@ export function ShowroomProvider({ children }: { children: React.ReactNode }) {
       ];
     });
 
-    logAnalyticsEvent('product_add', product.id, product.name, { quantity: qty, option });
-    setIsCartOpen(true);
+    logAnalyticsEvent('product_add', product.id, product.name, { quantity: qty, option, color, goldRim });
+    setIsQuoteDrawerOpen(true);
   };
 
-  const removeFromCart = (index: number) => {
-    const item = cart[index];
-    if (item) {
-      logAnalyticsEvent('product_remove', item.product.id, item.product.name);
-    }
-    setCart(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateQuantity = (index: number, quantity: number) => {
-    setCart(prev => {
-      if (quantity <= 0) return prev.filter((_, i) => i !== index);
-      const updated = [...prev];
-      const item = updated[index];
+  const removeFromCart = (productId: string) => {
+    setCartItems(prev => {
+      const item = prev.find(i => i.product.id === productId);
       if (item) {
-        updated[index] = {
-          ...item,
-          quantity,
-          lineSubtotal: quantity * item.unitPrice,
-        };
+        logAnalyticsEvent('product_remove', item.product.id, item.product.name);
       }
-      return updated;
+      return prev.filter(i => i.product.id !== productId);
     });
   };
 
-  const clearCart = () => setCart([]);
+  const updateQuantity = (productId: string, quantity: number) => {
+    setCartItems(prev => {
+      if (quantity <= 0) return prev.filter(i => i.product.id !== productId);
+      return prev.map(item => {
+        if (item.product.id === productId) {
+          return {
+            ...item,
+            quantity,
+            lineSubtotal: quantity * item.unitPrice,
+          };
+        }
+        return item;
+      });
+    });
+  };
+
+  const clearCart = () => setCartItems([]);
 
   const toggleExhibitionMode = () => {
     setIsExhibitionMode(prev => {
@@ -231,22 +249,22 @@ export function ShowroomProvider({ children }: { children: React.ReactNode }) {
     logAnalyticsEvent('qr_generated', undefined, title, { url });
   };
 
-  const cartTotals = calculateCartTotals(cart);
+  const cartTotals = calculateCartTotals(cartItems);
 
   return (
     <ShowroomContext.Provider
       value={{
-        cart,
+        cartItems,
         addToCart,
         removeFromCart,
         updateQuantity,
         clearCart,
-        isCartOpen,
-        setIsCartOpen,
+        isQuoteDrawerOpen,
+        setIsQuoteDrawerOpen,
         isQuoteModalOpen,
         setIsQuoteModalOpen,
-        selectedProductDetail,
-        setSelectedProductDetail,
+        selectedProduct,
+        setSelectedProduct,
         isQRModalOpen,
         setIsQRModalOpen,
         qrPayload,

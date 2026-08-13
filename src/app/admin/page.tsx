@@ -13,6 +13,7 @@ import {
   getCategoriesFromStore,
   saveCategoryToStore,
   deleteCategoryFromStore,
+  generateUUID,
 } from '@/lib/supabase';
 import { formatCurrency, generateQuoteId, buildWhatsAppUrl, calculateCartTotals } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
@@ -52,6 +53,15 @@ import {
   Palette,
 } from 'lucide-react';
 
+const availableColorOptions = [
+  'Verde Esmeralda',
+  'Âmbar Dourado',
+  'Azul Cobalto',
+  'Fumê Cristal',
+  'Incolor / Transparente',
+  'Rubi Imperial',
+];
+
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [pinInput, setPinInput] = useState<string>('');
@@ -71,6 +81,10 @@ export default function AdminPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [selectedQuoteDetail, setSelectedQuoteDetail] = useState<Quote | null>(null);
+
+  // Edit product color state
+  const [formColors, setFormColors] = useState<string[]>([]);
+  const [formHasGoldRim, setFormHasGoldRim] = useState<boolean>(true);
 
   const [quoteStatusFilter, setQuoteStatusFilter] = useState<string>('all');
   const [productSearch, setProductSearch] = useState<string>('');
@@ -125,6 +139,16 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (editingProduct) {
+      setFormColors(editingProduct.available_colors || availableColorOptions);
+      setFormHasGoldRim(editingProduct.has_gold_rim_option ?? true);
+    } else {
+      setFormColors(availableColorOptions);
+      setFormHasGoldRim(true);
+    }
+  }, [editingProduct]);
+
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const validPins = ['2026', 'toqueideal', 'toqueideal2026'];
@@ -147,7 +171,7 @@ export default function AdminPage() {
   const handleSaveCategory = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const id = editingCategory ? editingCategory.id : `cat-${Date.now()}`;
+    const id = editingCategory ? editingCategory.id : generateUUID();
     const name = formData.get('name') as string;
 
     const newCat: Category = {
@@ -353,14 +377,14 @@ export default function AdminPage() {
   const handleSaveProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const id = editingProduct ? editingProduct.id : `p-${Date.now()}`;
+    const id = editingProduct ? editingProduct.id : generateUUID();
     const categoryId = formData.get('category_id') as string;
 
     const newProd: Product = {
       id,
       sku: formData.get('sku') as string,
       name: formData.get('name') as string,
-      slug: (formData.get('name') as string).toLowerCase().replace(/\s+/g, '-'),
+      slug: (formData.get('name') as string).toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, ''),
       short_desc: formData.get('short_desc') as string,
       description: formData.get('description') as string,
       price: parseFloat(formData.get('price') as string) || 0,
@@ -372,8 +396,8 @@ export default function AdminPage() {
       is_featured: formData.get('is_featured') === 'on',
       is_launch: formData.get('is_launch') === 'on',
       custom_options: ['Gravação Laser no Vidro', 'Lapidação Especial', 'Filete em Ouro 24k / Borda Dourada', 'Embalagem Especial de Presente'],
-      available_colors: ['Verde Esmeralda', 'Âmbar Dourado', 'Azul Cobalto', 'Fumê Cristal', 'Incolor / Transparente', 'Rubi Imperial'],
-      has_gold_rim_option: true,
+      available_colors: formColors.length > 0 ? formColors : availableColorOptions,
+      has_gold_rim_option: formHasGoldRim,
       images: [
         (formData.get('image_url') as string) || 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800'
       ],
@@ -737,12 +761,9 @@ export default function AdminPage() {
                           onChange={e => setAddItemColor(e.target.value)}
                           className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold"
                         >
-                          <option value="Verde Esmeralda">Verde Esmeralda</option>
-                          <option value="Âmbar Dourado">Âmbar Dourado</option>
-                          <option value="Azul Cobalto">Azul Cobalto</option>
-                          <option value="Fumê Cristal">Fumê Cristal</option>
-                          <option value="Incolor / Transparente">Incolor / Transparente</option>
-                          <option value="Rubi Imperial">Rubi Imperial</option>
+                          {availableColorOptions.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
                         </select>
                       </div>
 
@@ -1379,7 +1400,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* CREATE / EDIT PRODUCT MODAL */}
+      {/* CREATE / EDIT PRODUCT MODAL WITH COLOR & GOLD RIM OPTIONS */}
       {isProductModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
           <div className="relative w-full max-w-xl bg-white p-6 rounded-3xl border border-slate-200 space-y-4 my-8 shadow-2xl">
@@ -1395,7 +1416,7 @@ export default function AdminPage() {
             <form onSubmit={handleSaveProduct} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-700 font-bold block mb-1">SKU / Código</label>
+                  <label className="text-slate-700 font-bold block mb-1">SKU / Código *</label>
                   <input
                     name="sku"
                     required
@@ -1405,7 +1426,7 @@ export default function AdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-slate-700 font-bold block mb-1">Categoria</label>
+                  <label className="text-slate-700 font-bold block mb-1">Categoria *</label>
                   <select
                     name="category_id"
                     defaultValue={editingProduct?.category_id || (categories[0]?.id || '')}
@@ -1419,18 +1440,18 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="text-slate-700 font-bold block mb-1">Nome do Produto</label>
+                <label className="text-slate-700 font-bold block mb-1">Nome do Produto *</label>
                 <input
                   name="name"
                   required
                   defaultValue={editingProduct?.name || ''}
-                  placeholder="Ex: Vaso Decorativo Vidro Verde"
-                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                  placeholder="Ex: Vaso Decorativo Vidro Verde 50cm"
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
                 />
               </div>
 
               <div>
-                <label className="text-slate-700 font-bold block mb-1">Descrição Curta</label>
+                <label className="text-slate-700 font-bold block mb-1">Descrição Curta *</label>
                 <input
                   name="short_desc"
                   required
@@ -1441,13 +1462,58 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="text-slate-700 font-bold block mb-1">Descrição Completa</label>
+                <label className="text-slate-700 font-bold block mb-1">Descrição Completa *</label>
                 <textarea
                   name="description"
                   rows={2}
                   defaultValue={editingProduct?.description || ''}
                   className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
                 />
+              </div>
+
+              {/* CORES DISPONÍVEIS SELECTION */}
+              <div className="space-y-1.5 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                <label className="text-slate-900 font-extrabold block text-xs flex items-center gap-1.5">
+                  <Palette className="w-4 h-4 text-[#204060]" />
+                  <span>Cores Disponíveis do Vidro para Este Produto:</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                  {availableColorOptions.map((c) => {
+                    const checked = formColors.includes(c);
+                    return (
+                      <label key={c} className="flex items-center gap-2 cursor-pointer text-[11px] font-bold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormColors(prev => [...prev, c]);
+                            } else {
+                              setFormColors(prev => prev.filter(item => item !== c));
+                            }
+                          }}
+                          className="w-4 h-4 accent-[#204060] rounded"
+                        />
+                        <span>{c}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* BORDA DOURADA OPTION TOGGLE */}
+              <div className="flex items-center gap-2 p-3 rounded-2xl bg-amber-50 border border-amber-200">
+                <input
+                  type="checkbox"
+                  id="formGoldRimCheck"
+                  checked={formHasGoldRim}
+                  onChange={e => setFormHasGoldRim(e.target.checked)}
+                  className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                />
+                <label htmlFor="formGoldRimCheck" className="text-xs font-extrabold text-amber-950 cursor-pointer flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span>Permitir opção de Filete em Ouro 24k / Borda Dourada</span>
+                </label>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
@@ -1459,7 +1525,7 @@ export default function AdminPage() {
                     step="0.01"
                     required
                     defaultValue={editingProduct?.price || 0}
-                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
                   />
                 </div>
                 <div>

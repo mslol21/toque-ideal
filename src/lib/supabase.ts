@@ -11,6 +11,16 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+export function generateUUID(): string {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    try {
+      return window.crypto.randomUUID();
+    } catch (e) {}
+  }
+  const hex = Date.now().toString(16).padStart(12, '0');
+  return `c0000000-0000-4000-8000-${hex}`;
+}
+
 // CATEGORY PERSISTENCE DRIVER
 export async function getCategoriesFromStore(): Promise<Category[]> {
   if (typeof window === 'undefined') return INITIAL_CATEGORIES;
@@ -33,9 +43,16 @@ export async function getCategoriesFromStore(): Promise<Category[]> {
         .order('display_order', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        // Merge or return Supabase data
-        localStorage.setItem('toque_ideal_categories', JSON.stringify(data));
-        return data as Category[];
+        const mergedMap = new Map<string, Category>();
+        (data as Category[]).forEach(c => mergedMap.set(c.id, c));
+        localCategories.forEach(c => {
+          if (!mergedMap.has(c.id)) {
+            mergedMap.set(c.id, c);
+          }
+        });
+        const merged = Array.from(mergedMap.values());
+        localStorage.setItem('toque_ideal_categories', JSON.stringify(merged));
+        return merged;
       }
     }
   } catch (e) {
@@ -46,7 +63,11 @@ export async function getCategoriesFromStore(): Promise<Category[]> {
 }
 
 export async function saveCategoryToStore(category: Category): Promise<Category> {
-  // 1. Always update local storage first so changes take effect immediately
+  if (!category.id || category.id.startsWith('cat-')) {
+    category.id = generateUUID();
+  }
+
+  // 1. Always update local storage first so changes are immediate
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('toque_ideal_categories');
     let list: Category[] = stored ? JSON.parse(stored) : INITIAL_CATEGORIES;
@@ -66,9 +87,9 @@ export async function saveCategoryToStore(category: Category): Promise<Category>
         id: category.id,
         name: category.name,
         slug: category.slug,
-        icon: category.icon,
-        description: category.description,
-        display_order: category.display_order,
+        icon: category.icon || 'Sparkles',
+        description: category.description || '',
+        display_order: category.display_order || 0,
       });
     } catch (e) {
       console.warn('Supabase sync warning for category:', e);
@@ -79,7 +100,6 @@ export async function saveCategoryToStore(category: Category): Promise<Category>
 }
 
 export async function deleteCategoryFromStore(categoryId: string): Promise<boolean> {
-  // 1. Delete from local storage
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('toque_ideal_categories');
     if (stored) {
@@ -89,7 +109,6 @@ export async function deleteCategoryFromStore(categoryId: string): Promise<boole
     }
   }
 
-  // 2. Sync deletion to Supabase
   if (isSupabaseConfigured && supabase) {
     try {
       await supabase.from('categories').delete().eq('id', categoryId);
@@ -120,8 +139,16 @@ export async function getProductsFromStore(): Promise<Product[]> {
         .eq('is_active', true);
 
       if (!error && data && data.length > 0) {
-        localStorage.setItem('toque_ideal_products', JSON.stringify(data));
-        return data as Product[];
+        const mergedMap = new Map<string, Product>();
+        (data as Product[]).forEach(p => mergedMap.set(p.id, p));
+        localProds.forEach(p => {
+          if (!mergedMap.has(p.id)) {
+            mergedMap.set(p.id, p);
+          }
+        });
+        const merged = Array.from(mergedMap.values());
+        localStorage.setItem('toque_ideal_products', JSON.stringify(merged));
+        return merged;
       }
     }
   } catch (e) {
@@ -132,7 +159,11 @@ export async function getProductsFromStore(): Promise<Product[]> {
 }
 
 export async function saveProductToStore(product: Product): Promise<Product> {
-  // 1. Always update local storage first so changes take effect immediately
+  if (!product.id || product.id.startsWith('p-')) {
+    product.id = generateUUID();
+  }
+
+  // 1. Always update local storage first
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('toque_ideal_products');
     let list: Product[] = stored ? JSON.parse(stored) : INITIAL_PRODUCTS;
@@ -159,6 +190,7 @@ export async function saveProductToStore(product: Product): Promise<Product> {
         promo_price: product.promo_price,
         moq: product.moq,
         category_id: product.category_id,
+        category_name: product.category_name,
         is_active: product.is_active,
         is_featured: product.is_featured,
         is_launch: product.is_launch,
@@ -177,7 +209,6 @@ export async function saveProductToStore(product: Product): Promise<Product> {
 }
 
 export async function deleteProductFromStore(productId: string): Promise<boolean> {
-  // 1. Delete from local storage
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('toque_ideal_products');
     if (stored) {
@@ -187,7 +218,6 @@ export async function deleteProductFromStore(productId: string): Promise<boolean
     }
   }
 
-  // 2. Sync deletion to Supabase
   if (isSupabaseConfigured && supabase) {
     try {
       await supabase.from('products').delete().eq('id', productId);
@@ -200,8 +230,13 @@ export async function deleteProductFromStore(productId: string): Promise<boolean
 export async function getQuotesFromStore(): Promise<Quote[]> {
   if (typeof window === 'undefined') return [];
 
+  let localQuotes: Quote[] = [];
   const stored = localStorage.getItem('toque_ideal_quotes');
-  let localQuotes: Quote[] = stored ? JSON.parse(stored) : [];
+  if (stored) {
+    try {
+      localQuotes = JSON.parse(stored);
+    } catch (e) {}
+  }
 
   try {
     if (isSupabaseConfigured && supabase) {
@@ -211,8 +246,19 @@ export async function getQuotesFromStore(): Promise<Quote[]> {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        localStorage.setItem('toque_ideal_quotes', JSON.stringify(data));
-        return data as Quote[];
+        const mergedMap = new Map<string, Quote>();
+        // Add Supabase items
+        (data as Quote[]).forEach(q => mergedMap.set(q.id || q.quote_number, q));
+        // Preserve all local quotes that aren't in Supabase
+        localQuotes.forEach(q => {
+          const key = q.id || q.quote_number;
+          if (!mergedMap.has(key)) {
+            mergedMap.set(key, q);
+          }
+        });
+        const merged = Array.from(mergedMap.values());
+        localStorage.setItem('toque_ideal_quotes', JSON.stringify(merged));
+        return merged;
       }
     }
   } catch (e) {
@@ -232,7 +278,7 @@ export async function saveQuoteToStore(
   notes?: string
 ): Promise<Quote> {
   const newQuote: Quote = {
-    id: `q-${Date.now()}`,
+    id: generateUUID(),
     quote_number: quoteNumber,
     client: clientData,
     status: 'Novo',
@@ -267,7 +313,9 @@ export async function saveQuoteToStore(
         notes: newQuote.notes,
         created_at: newQuote.created_at,
       });
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Supabase sync warning for quote:', e);
+    }
   }
 
   return newQuote;
@@ -307,7 +355,7 @@ export async function logAnalyticsEvent(
   }
 
   const event: AnalyticsEvent = {
-    id: `evt-${Date.now()}`,
+    id: generateUUID(),
     event_type: eventType as any,
     product_id: productId,
     product_name: productName,
@@ -353,8 +401,16 @@ export async function getAnalyticsEvents(): Promise<AnalyticsEvent[]> {
         .limit(50);
 
       if (!error && data) {
-        localStorage.setItem('toque_ideal_analytics', JSON.stringify(data));
-        return data as AnalyticsEvent[];
+        const mergedMap = new Map<string, AnalyticsEvent>();
+        (data as AnalyticsEvent[]).forEach(e => mergedMap.set(e.id, e));
+        localEvents.forEach(e => {
+          if (!mergedMap.has(e.id)) {
+            mergedMap.set(e.id, e);
+          }
+        });
+        const merged = Array.from(mergedMap.values());
+        localStorage.setItem('toque_ideal_analytics', JSON.stringify(merged));
+        return merged;
       }
     }
   } catch (e) {}

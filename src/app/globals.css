@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --brand-navy: #204060;
+    --brand-blue: #1e3a5a;
+    --brand-ice: #e0f2fe;
+  }
+}
+
+html, body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Light Luxury Glassmorphism Panel Styling */
+.glass-panel {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.06), 0 4px 6px -2px rgba(15, 23, 42, 0.02) !important;
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  border-color: #204060 !important;
+  box-shadow: 0 20px 40px -10px rgba(32, 64, 96, 0.15) !important;
+  transform: translateY(-2px);
+}
+
+.glass-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Toque Ideal Official Brand Navy Gradients */
+.brand-gradient-text {
+  background: linear-gradient(135deg, #1e3a5a 0%, #204060 50%, #2563eb 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.brand-gradient-bg {
+  background: linear-gradient(135deg, #1e3a5a 0%, #204060 60%, #2563eb 100%) !important;
+  color: #ffffff !important;
+}
+
+.brand-gradient-bg:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 60%, #1e40af 100%) !important;
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.35) !important;
+}
+
+/* Brand Glow */
+.brand-glow {
+  box-shadow: 0 0 25px rgba(32, 64, 96, 0.25);
+}
+
+/* Custom Light Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #204060;
+}
+
+/* Kiosk Exhibition Mode Touch Lock */
+.exhibition-kiosk-active {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.exhibition-kiosk-active button,
+.exhibition-kiosk-active a {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Hide scrollbars for pill bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

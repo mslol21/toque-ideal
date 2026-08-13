@@ -1,0 +1,1535 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Product, Quote, AnalyticsEvent, QuoteStatus, CartItem, PersonalizationOption, Category } from '@/types';
+import {
+  getProductsFromStore,
+  saveProductToStore,
+  deleteProductFromStore,
+  getQuotesFromStore,
+  saveQuoteToStore,
+  updateQuoteStatusInStore,
+  getAnalyticsEvents,
+  getCategoriesFromStore,
+  saveCategoryToStore,
+  deleteCategoryFromStore,
+} from '@/lib/supabase';
+import { formatCurrency, generateQuoteId, buildWhatsAppUrl, calculateCartTotals } from '@/lib/utils';
+import { Logo } from '@/components/Logo';
+import {
+  LayoutDashboard,
+  Package,
+  FileText,
+  BarChart3,
+  Plus,
+  Trash2,
+  Edit,
+  Eye,
+  DollarSign,
+  TrendingUp,
+  Search,
+  ArrowLeft,
+  X,
+  Lock,
+  LogOut,
+  KeyRound,
+  ShieldCheck,
+  PlusCircle,
+  Building,
+  User,
+  Phone,
+  Mail,
+  Send,
+  Minus,
+  CheckCircle2,
+  FileSpreadsheet,
+  Layers,
+  Sparkles,
+  Award,
+  Home,
+  Gift,
+  Star,
+} from 'lucide-react';
+
+export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [pinInput, setPinInput] = useState<string>('');
+  const [pinError, setPinError] = useState<boolean>(false);
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'categories' | 'products' | 'quotes' | 'new-quote' | 'analytics'>('dashboard');
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [selectedQuoteDetail, setSelectedQuoteDetail] = useState<Quote | null>(null);
+
+  const [quoteStatusFilter, setQuoteStatusFilter] = useState<string>('all');
+  const [productSearch, setProductSearch] = useState<string>('');
+
+  // NEW ADMIN QUOTE GENERATOR WORKSTATION STATE
+  const [adminOrderItems, setAdminOrderItems] = useState<CartItem[]>([]);
+  const [selectedProductToAdd, setSelectedProductToAdd] = useState<string>('');
+  const [addItemQty, setAddItemQty] = useState<number>(10);
+  const [addItemOption, setAddItemOption] = useState<PersonalizationOption>('Gravação Laser no Vidro');
+  const [addItemNotes, setAddItemNotes] = useState<string>('');
+
+  const [clientName, setClientName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [clientWhatsapp, setClientWhatsapp] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientCity, setClientCity] = useState('');
+  const [clientState, setClientState] = useState('SP');
+  const [quoteNotes, setQuoteNotes] = useState('');
+
+  const [generatedQuoteSuccess, setGeneratedQuoteSuccess] = useState<Quote | null>(null);
+
+  // VERIFY SESSION AUTHENTICATION
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedAuth = sessionStorage.getItem('toque_ideal_admin_auth');
+      if (storedAuth === 'true') {
+        setIsAuthenticated(true);
+      }
+    }
+  }, []);
+
+  const loadAllData = async () => {
+    setLoading(true);
+    const [cData, pData, qData, aData] = await Promise.all([
+      getCategoriesFromStore(),
+      getProductsFromStore(),
+      getQuotesFromStore(),
+      getAnalyticsEvents(),
+    ]);
+    setCategories(cData);
+    setProducts(pData);
+    setQuotes(qData);
+    setAnalytics(aData);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadAllData();
+    }
+  }, [isAuthenticated]);
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const validPins = ['2026', 'toqueideal', 'toqueideal2026'];
+    if (validPins.includes(pinInput.trim().toLowerCase())) {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('toque_ideal_admin_auth', 'true');
+      setPinError(false);
+    } else {
+      setPinError(true);
+      setPinInput('');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('toque_ideal_admin_auth');
+  };
+
+  // SAVE CATEGORY
+  const handleSaveCategory = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const id = editingCategory ? editingCategory.id : `cat-${Date.now()}`;
+    const name = formData.get('name') as string;
+
+    const newCat: Category = {
+      id,
+      name,
+      slug: name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, ''),
+      icon: (formData.get('icon') as string) || 'Sparkles',
+      description: (formData.get('description') as string) || '',
+      display_order: parseInt(formData.get('display_order') as string) || (categories.length + 1),
+    };
+
+    await saveCategoryToStore(newCat);
+    setIsCategoryModalOpen(false);
+    setEditingCategory(null);
+    loadAllData();
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir esta categoria? Os produtos vinculados serão mantidos.')) {
+      await deleteCategoryFromStore(id);
+      loadAllData();
+    }
+  };
+
+  // ADD ITEM TO ADMIN ORDER WORKSTATION
+  const handleAddProductToAdminOrder = () => {
+    if (!selectedProductToAdd) return;
+    const prod = products.find(p => p.id === selectedProductToAdd);
+    if (!prod) return;
+
+    const unitPrice = prod.promo_price || prod.price;
+    const quantity = Math.max(prod.moq || 1, addItemQty);
+    const lineSubtotal = unitPrice * quantity;
+
+    const newItem: CartItem = {
+      product: prod,
+      quantity,
+      selectedOption: addItemOption,
+      customNotes: addItemNotes,
+      unitPrice,
+      lineSubtotal,
+    };
+
+    setAdminOrderItems(prev => [...prev, newItem]);
+    setSelectedProductToAdd('');
+    setAddItemQty(10);
+    setAddItemNotes('');
+  };
+
+  const handleRemoveAdminItem = (index: number) => {
+    setAdminOrderItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAdminQtyChange = (index: number, newQty: number) => {
+    setAdminOrderItems(prev =>
+      prev.map((item, i) => {
+        if (i === index) {
+          const qty = Math.max(item.product.moq || 1, newQty);
+          return {
+            ...item,
+            quantity: qty,
+            lineSubtotal: item.unitPrice * qty,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  // CALCULATE TOTALS FOR ADMIN WORKSTATION
+  const adminTotals = calculateCartTotals(adminOrderItems);
+
+  // SUBMIT ADMIN ORDER / GENERATE QUOTE
+  const handleCreateAdminQuote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminOrderItems.length === 0) {
+      alert('Adicione pelo menos um produto ao pedido antes de gerar o orçamento.');
+      return;
+    }
+    if (!clientName || !companyName || !clientWhatsapp || !clientEmail) {
+      alert('Preencha os campos obrigatórios do cliente (Nome, Empresa, WhatsApp e E-mail).');
+      return;
+    }
+
+    const quoteNumber = generateQuoteId();
+    const clientData = {
+      name: clientName,
+      company: companyName,
+      whatsapp: clientWhatsapp,
+      email: clientEmail,
+      city: clientCity,
+      state: clientState,
+      notes: quoteNotes,
+    };
+
+    const savedQuote = await saveQuoteToStore(
+      quoteNumber,
+      clientData,
+      adminOrderItems,
+      adminTotals.subtotal,
+      adminTotals.discountAmount,
+      adminTotals.totalAmount,
+      quoteNotes
+    );
+
+    setGeneratedQuoteSuccess(savedQuote);
+    setAdminOrderItems([]);
+    setClientName('');
+    setCompanyName('');
+    setClientWhatsapp('');
+    setClientEmail('');
+    setClientCity('');
+    setQuoteNotes('');
+    loadAllData();
+  };
+
+  // LOCK SCREEN FOR UNAUTHENTICATED USERS
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-slate-800/90 backdrop-blur-xl border border-slate-700 rounded-3xl p-8 shadow-2xl space-y-6 text-center">
+          <div className="flex justify-center">
+            <Logo size="lg" theme="dark" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-700/80 border border-slate-600 text-[#90CDF4] text-xs font-bold uppercase tracking-wider">
+              <Lock className="w-3.5 h-3.5 text-[#90CDF4]" />
+              <span>ACESSO RESTRITO À EQUIPE</span>
+            </div>
+            <h2 className="text-2xl font-black text-white">Painel Administrativo</h2>
+            <p className="text-xs text-slate-400">
+              Digite a senha ou código de acesso PIN para gerenciar produtos e orçamentos do estande.
+            </p>
+          </div>
+
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <div className="relative">
+                <KeyRound className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  required
+                  value={pinInput}
+                  onChange={e => {
+                    setPinInput(e.target.value);
+                    setPinError(false);
+                  }}
+                  placeholder="Digite a senha (ex: 2026)..."
+                  className={`w-full pl-11 pr-4 py-3.5 rounded-2xl bg-slate-900 border text-white text-center font-bold tracking-widest text-lg focus:outline-none transition-colors ${
+                    pinError ? 'border-red-500 focus:border-red-500' : 'border-slate-700 focus:border-[#2563eb]'
+                  }`}
+                />
+              </div>
+
+              {pinError && (
+                <p className="text-xs text-red-400 font-bold">
+                  Senha incorreta. Tente "2026" ou solicite a senha da equipe.
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-4 rounded-2xl brand-gradient-bg font-extrabold text-sm shadow-xl hover:scale-[1.02] transition-transform text-white uppercase tracking-wider flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-5 h-5 text-white" />
+              <span>DESBLOQUEAR PAINEL</span>
+            </button>
+          </form>
+
+          <div className="pt-4 border-t border-slate-700 flex items-center justify-between text-xs text-slate-400">
+            <a href="/" className="hover:text-white flex items-center gap-1">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao Showroom
+            </a>
+            <span className="text-[10px] text-slate-500">Toque Ideal © {new Date().getFullYear()}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const totalQuotesCount = quotes.length;
+  const totalPipelineRevenue = quotes.reduce((acc, q) => acc + q.total_amount, 0);
+
+  const productViewCounts: Record<string, number> = {};
+  const productAddCounts: Record<string, number> = {};
+
+  analytics.forEach(evt => {
+    if (evt.event_type === 'product_view' && evt.product_name) {
+      productViewCounts[evt.product_name] = (productViewCounts[evt.product_name] || 0) + 1;
+    }
+    if (evt.event_type === 'product_add' && evt.product_name) {
+      productAddCounts[evt.product_name] = (productAddCounts[evt.product_name] || 0) + 1;
+    }
+  });
+
+  const topViewed = Object.entries(productViewCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topAdded = Object.entries(productAddCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const handleSaveProduct = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const id = editingProduct ? editingProduct.id : `p-${Date.now()}`;
+    const categoryId = formData.get('category_id') as string;
+
+    const newProd: Product = {
+      id,
+      sku: formData.get('sku') as string,
+      name: formData.get('name') as string,
+      slug: (formData.get('name') as string).toLowerCase().replace(/\s+/g, '-'),
+      short_desc: formData.get('short_desc') as string,
+      description: formData.get('description') as string,
+      price: parseFloat(formData.get('price') as string) || 0,
+      promo_price: formData.get('promo_price') ? parseFloat(formData.get('promo_price') as string) : null,
+      moq: parseInt(formData.get('moq') as string) || 1,
+      category_id: categoryId,
+      category_name: categories.find(c => c.id === categoryId)?.name || 'Geral',
+      is_active: formData.get('is_active') === 'on',
+      is_featured: formData.get('is_featured') === 'on',
+      is_launch: formData.get('is_launch') === 'on',
+      custom_options: ['Gravação Laser no Vidro', 'Lapidação Especial', 'Embalagem Especial de Presente'],
+      images: [
+        (formData.get('image_url') as string) || 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800'
+      ],
+      specs: {
+        material: formData.get('material') as string,
+        capacity: formData.get('capacity') as string,
+      }
+    };
+
+    await saveProductToStore(newProd);
+    setIsProductModalOpen(false);
+    setEditingProduct(null);
+    loadAllData();
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este produto do catálogo?')) {
+      await deleteProductFromStore(id);
+      loadAllData();
+    }
+  };
+
+  const handleUpdateStatus = async (quoteId: string, newStatus: QuoteStatus) => {
+    await updateQuoteStatusInStore(quoteId, newStatus);
+    loadAllData();
+  };
+
+  const filteredQuotes = quotes.filter(q => {
+    if (quoteStatusFilter === 'all') return true;
+    return q.status === quoteStatusFilter;
+  });
+
+  const filteredProducts = products.filter(p => {
+    if (!productSearch) return true;
+    return p.name.toLowerCase().includes(productSearch.toLowerCase()) || p.sku.toLowerCase().includes(productSearch.toLowerCase());
+  });
+
+  const quoteStatuses: QuoteStatus[] = [
+    'Novo',
+    'Em análise',
+    'Orçamento enviado',
+    'Negociação',
+    'Aprovado',
+    'Produção',
+    'Concluído',
+    'Cancelado',
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      
+      {/* AUTHENTICATED ADMIN HEADER */}
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+        <div className="flex items-center gap-4">
+          <a
+            href="/"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1 text-xs font-bold"
+            title="Voltar ao Showroom"
+          >
+            <ArrowLeft className="w-4 h-4" /> Showroom
+          </a>
+          <Logo size="sm" theme="light" />
+        </div>
+
+        {/* TABS */}
+        <nav className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'dashboard' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            <span>Dashboard</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('categories')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'categories' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Categorias</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('new-quote')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'new-quote' ? 'bg-emerald-600 text-white shadow-md' : 'text-emerald-700 hover:bg-emerald-50'
+            }`}
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Novo Orçamento</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'products' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span>Produtos</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('quotes')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'quotes' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Orçamentos</span>
+            {quotes.length > 0 && (
+              <span className="w-5 h-5 rounded-full bg-[#204060] text-white text-[10px] flex items-center justify-center font-extrabold shadow">
+                {quotes.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'analytics' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>Analytics</span>
+          </button>
+        </nav>
+
+        {/* LOGOUT BUTTON */}
+        <button
+          onClick={handleLogout}
+          className="p-2.5 rounded-xl bg-slate-100 hover:bg-red-100 text-slate-700 hover:text-red-700 font-bold text-xs flex items-center gap-1.5 border border-slate-200 transition-colors"
+          title="Bloquear Painel / Sair"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline">Bloquear</span>
+        </button>
+      </header>
+
+      <main className="max-w-7xl mx-auto p-6 space-y-8">
+        
+        {/* DASHBOARD TAB */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
+                <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase">
+                  <span>ORÇAMENTOS RECEBIDOS</span>
+                  <FileText className="w-4 h-4 text-[#204060]" />
+                </div>
+                <span className="text-3xl font-extrabold text-slate-900">{totalQuotesCount}</span>
+                <span className="text-[11px] text-emerald-600 font-bold block">+100% de conversão digital</span>
+              </div>
+
+              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
+                <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase">
+                  <span>VALOR EM PIPELINE</span>
+                  <DollarSign className="w-4 h-4 text-[#204060]" />
+                </div>
+                <span className="text-3xl font-extrabold text-[#204060]">
+                  {formatCurrency(totalPipelineRevenue)}
+                </span>
+                <span className="text-[11px] text-slate-500 block font-medium">Soma de orçamentos gerados</span>
+              </div>
+
+              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
+                <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase">
+                  <span>CATÁLOGO ATIVO</span>
+                  <Package className="w-4 h-4 text-[#204060]" />
+                </div>
+                <span className="text-3xl font-extrabold text-slate-900">{products.length}</span>
+                <span className="text-[11px] text-slate-500 block font-medium">Produtos cadastrados</span>
+              </div>
+
+              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
+                <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase">
+                  <span>INTERAÇÕES NO ESTANDE</span>
+                  <TrendingUp className="w-4 h-4 text-[#204060]" />
+                </div>
+                <span className="text-3xl font-extrabold text-slate-900">{analytics.length}</span>
+                <span className="text-[11px] text-[#2563eb] font-bold block">Eventos de navegação</span>
+              </div>
+            </div>
+
+            {/* RANKINGS GRID */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-[#204060]" /> Peças Mais Visualizadas
+                </h3>
+                <div className="space-y-3">
+                  {topViewed.length > 0 ? (
+                    topViewed.map(([name, count], i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-xs border border-slate-100">
+                        <span className="font-bold text-slate-800">{name}</span>
+                        <span className="px-2.5 py-1 rounded-full bg-[#204060] text-white font-bold">
+                          {count} views
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400 py-4">Nenhuma visualização registrada ainda.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-[#204060]" /> Peças Mais Adicionadas ao Pedido
+                </h3>
+                <div className="space-y-3">
+                  {topAdded.length > 0 ? (
+                    topAdded.map(([name, count], i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-xs border border-slate-100">
+                        <span className="font-bold text-slate-800">{name}</span>
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white font-bold">
+                          {count} adicionados
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400 py-4">Nenhuma adição ao carrinho ainda.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CATEGORIES MANAGEMENT TAB */}
+        {activeTab === 'categories' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-extrabold text-slate-900">Gestão de Categorias</h2>
+                <p className="text-xs text-slate-500 font-medium">Cadastre e organize as categorias de produtos do showroom digital.</p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEditingCategory(null);
+                  setIsCategoryModalOpen(true);
+                }}
+                className="px-4 py-2.5 rounded-xl brand-gradient-bg font-bold text-xs flex items-center gap-2 shadow-md shrink-0 text-white uppercase tracking-wider"
+              >
+                <Plus className="w-4 h-4 text-white" /> NOVA CATEGORIA
+              </button>
+            </div>
+
+            {/* CATEGORY TABLE */}
+            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4">Ordem</th>
+                    <th className="p-4">Ícone</th>
+                    <th className="p-4">Nome da Categoria</th>
+                    <th className="p-4">Slug (Identificador URL)</th>
+                    <th className="p-4">Descrição</th>
+                    <th className="p-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {categories.map(cat => (
+                    <tr key={cat.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-extrabold text-[#204060]">{cat.display_order || 0}</td>
+                      <td className="p-4">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-[#204060]">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                      </td>
+                      <td className="p-4 font-bold text-slate-900">{cat.name}</td>
+                      <td className="p-4 font-mono text-slate-500">{cat.slug}</td>
+                      <td className="p-4 text-slate-600 max-w-xs truncate">{cat.description || '-'}</td>
+                      <td className="p-4 text-right space-x-2">
+                        <button
+                          onClick={() => {
+                            setEditingCategory(cat);
+                            setIsCategoryModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-100 text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* NEW QUOTE GENERATOR WORKSTATION TAB ("NOVO ORÇAMENTO") */}
+        {activeTab === 'new-quote' && (
+          <div className="space-y-6">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-1">
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                <span>CENTRAL DE VENDAS & ORÇAMENTOS</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                Criar Novo Orçamento Comercial
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                Monte o pedido do cliente, preencha os dados da empresa e gere a cotação formal com link direto do WhatsApp.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-7 space-y-6">
+                <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                    <Package className="w-4 h-4 text-[#204060]" />
+                    <span>1. Selecionar Peça do Catálogo</span>
+                  </h3>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="text-slate-700 font-bold block mb-1">Escolha o produto</label>
+                      <select
+                        value={selectedProductToAdd}
+                        onChange={e => setSelectedProductToAdd(e.target.value)}
+                        className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-[#204060]"
+                      >
+                        <option value="">-- Selecione uma peça para adicionar --</option>
+                        {products.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} (SKU: {p.sku}) — {formatCurrency(p.promo_price || p.price)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-slate-700 font-bold block mb-1">Quantidade</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={addItemQty}
+                          onChange={e => setAddItemQty(parseInt(e.target.value) || 1)}
+                          className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 font-bold block mb-1">Técnica de Acabamento</label>
+                        <select
+                          value={addItemOption}
+                          onChange={e => setAddItemOption(e.target.value as PersonalizationOption)}
+                          className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold"
+                        >
+                          <option value="Gravação Laser no Vidro">Gravação Laser no Vidro</option>
+                          <option value="Lapidação Especial">Lapidação Especial</option>
+                          <option value="Embalagem Especial de Presente">Embalagem Especial de Presente</option>
+                          <option value="Placa de Inox Gravada a Laser">Placa de Inox Gravada a Laser</option>
+                          <option value="Base Personalizada">Base Personalizada</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-slate-700 font-bold block mb-1">Observações do Item (Opcional)</label>
+                      <input
+                        type="text"
+                        value={addItemNotes}
+                        onChange={e => setAddItemNotes(e.target.value)}
+                        placeholder="Ex: Gravação da logo do cliente na lateral"
+                        className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddProductToAdminOrder}
+                      disabled={!selectedProductToAdd}
+                      className="w-full py-3 rounded-xl brand-gradient-bg font-extrabold text-xs shadow-md hover:scale-[1.01] transition-transform text-white uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <PlusCircle className="w-4 h-4 text-white" />
+                      <span>INCLUIR ITEM NO PEDIDO</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-slate-900 text-sm">
+                      Itens do Pedido ({adminOrderItems.length})
+                    </h3>
+                    <span className="text-xs font-bold text-[#204060]">
+                      Subtotal: {formatCurrency(adminTotals.subtotal)}
+                    </span>
+                  </div>
+
+                  {adminOrderItems.length > 0 ? (
+                    <div className="space-y-3">
+                      {adminOrderItems.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4 text-xs"
+                        >
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={item.product.images[0]}
+                              alt=""
+                              className="w-12 h-12 rounded-xl object-cover border border-slate-200"
+                            />
+                            <div>
+                              <span className="font-bold text-slate-900 block">{item.product.name}</span>
+                              <span className="text-[10px] text-[#204060] font-semibold block">
+                                {item.selectedOption} {item.customNotes ? `("${item.customNotes}")` : ''}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                SKU: {item.product.sku} | Unitário: {formatCurrency(item.unitPrice)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center rounded-lg bg-white border border-slate-300 p-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleAdminQtyChange(idx, item.quantity - 5)}
+                                className="px-2 py-0.5 text-slate-600 hover:text-slate-900 font-bold"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="px-2 font-extrabold text-slate-900">{item.quantity}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleAdminQtyChange(idx, item.quantity + 5)}
+                                className="px-2 py-0.5 text-slate-600 hover:text-slate-900 font-bold"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            <span className="font-extrabold text-slate-900 w-24 text-right">
+                              {formatCurrency(item.lineSubtotal)}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAdminItem(idx)}
+                              className="text-slate-400 hover:text-red-600 p-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 space-y-2">
+                      <p className="text-xs text-slate-400 font-medium">
+                        Nenhum item adicionado ao pedido ainda. Escolha um produto acima.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="lg:col-span-5 space-y-6">
+                <form onSubmit={handleCreateAdminQuote} className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                    <Building className="w-4 h-4 text-[#204060]" />
+                    <span>2. Dados do Cliente / Empresa</span>
+                  </h3>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="text-slate-700 font-bold block mb-1">Nome do Contato / Cliente *</label>
+                      <div className="relative">
+                        <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          required
+                          value={clientName}
+                          onChange={e => setClientName(e.target.value)}
+                          placeholder="Ex: Dra. Mariana Costa"
+                          className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-slate-700 font-bold block mb-1">Razão Social / Nome da Empresa *</label>
+                      <div className="relative">
+                        <Building className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          required
+                          value={companyName}
+                          onChange={e => setCompanyName(e.target.value)}
+                          placeholder="Ex: Costa & Associados Arquitetura"
+                          className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-slate-700 font-bold block mb-1">WhatsApp com DDD *</label>
+                        <div className="relative">
+                          <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="tel"
+                            required
+                            value={clientWhatsapp}
+                            onChange={e => setClientWhatsapp(e.target.value)}
+                            placeholder="(11) 96776-7364"
+                            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 font-bold block mb-1">E-mail Comercial *</label>
+                        <div className="relative">
+                          <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="email"
+                            required
+                            value={clientEmail}
+                            onChange={e => setClientEmail(e.target.value)}
+                            placeholder="contato@empresa.com.br"
+                            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="text-slate-700 font-bold block mb-1">Cidade</label>
+                        <input
+                          type="text"
+                          value={clientCity}
+                          onChange={e => setClientCity(e.target.value)}
+                          placeholder="São Paulo"
+                          className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-slate-700 font-bold block mb-1">UF</label>
+                        <input
+                          type="text"
+                          value={clientState}
+                          onChange={e => setClientState(e.target.value)}
+                          placeholder="SP"
+                          className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 uppercase"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-slate-700 font-bold block mb-1">Condições Especiais / Prazo de Entrega</label>
+                      <textarea
+                        rows={2}
+                        value={quoteNotes}
+                        onChange={e => setQuoteNotes(e.target.value)}
+                        placeholder="Ex: Entrega até dia 15/09 para evento corporativo."
+                        className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200 space-y-2 text-xs pt-3">
+                    <div className="flex items-center justify-between text-slate-600">
+                      <span>Subtotal dos Produtos:</span>
+                      <span className="font-bold text-slate-900">{formatCurrency(adminTotals.subtotal)}</span>
+                    </div>
+
+                    {adminTotals.discountAmount > 0 && (
+                      <div className="flex items-center justify-between text-emerald-700 font-bold">
+                        <span>Desconto Escala ({adminTotals.discountPercentage * 100}%):</span>
+                        <span>-{formatCurrency(adminTotals.discountAmount)}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-300 font-extrabold text-sm text-slate-900">
+                      <span>Valor Total do Orçamento:</span>
+                      <span className="text-base text-[#204060]">{formatCurrency(adminTotals.totalAmount)}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={adminOrderItems.length === 0}
+                    className="w-full py-4 rounded-2xl brand-gradient-bg font-extrabold text-sm shadow-lg hover:scale-[1.01] transition-transform text-white uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4 text-white" />
+                    <span>GERAR & REGISTRAR ORÇAMENTO</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PRODUCTS MANAGEMENT TAB */}
+        {activeTab === 'products' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-extrabold text-slate-900">Gestão de Catálogo</h2>
+                <p className="text-xs text-slate-500 font-medium">Cadastre, edite e altere preços dos produtos do showroom.</p>
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="relative flex-1 sm:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={productSearch}
+                    onChange={e => setProductSearch(e.target.value)}
+                    placeholder="Filtrar por nome ou SKU..."
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 text-xs shadow-sm"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    setEditingProduct(null);
+                    setIsProductModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl brand-gradient-bg font-bold text-xs flex items-center gap-2 shadow-md shrink-0 text-white uppercase tracking-wider"
+                >
+                  <Plus className="w-4 h-4 text-white" /> NOVO PRODUTO
+                </button>
+              </div>
+            </div>
+
+            {/* PRODUCT TABLE */}
+            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4">Produto</th>
+                    <th className="p-4">SKU</th>
+                    <th className="p-4">Categoria</th>
+                    <th className="p-4">Preço</th>
+                    <th className="p-4">MOQ</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {filteredProducts.map(product => (
+                    <tr key={product.id} className="hover:bg-slate-50">
+                      <td className="p-4 flex items-center gap-3">
+                        <img src={product.images[0]} alt="" className="w-10 h-10 rounded-lg object-cover border border-slate-200" />
+                        <div>
+                          <span className="font-bold text-slate-900 block">{product.name}</span>
+                          <span className="text-[10px] text-slate-400 line-clamp-1">{product.short_desc}</span>
+                        </div>
+                      </td>
+                      <td className="p-4 font-mono font-bold">{product.sku}</td>
+                      <td className="p-4">{product.category_name || 'Geral'}</td>
+                      <td className="p-4 font-extrabold text-slate-900">
+                        {formatCurrency(product.promo_price || product.price)}
+                      </td>
+                      <td className="p-4 font-semibold">{product.moq} un.</td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          product.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {product.is_active ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right space-x-2">
+                        <button
+                          onClick={() => {
+                            setEditingProduct(product);
+                            setIsProductModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProduct(product.id)}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-100 text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* QUOTES MANAGEMENT TAB */}
+        {activeTab === 'quotes' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-extrabold text-slate-900">Gestão de Orçamentos Comercial</h2>
+                <p className="text-xs text-slate-500 font-medium">Acompanhe os pedidos gerados pelos visitantes do estande.</p>
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-2">
+                <button
+                  onClick={() => setQuoteStatusFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold ${
+                    quoteStatusFilter === 'all' ? 'brand-gradient-bg text-white' : 'bg-white text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  Todos ({quotes.length})
+                </button>
+                {quoteStatuses.map(status => (
+                  <button
+                    key={status}
+                    onClick={() => setQuoteStatusFilter(status)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap ${
+                      quoteStatusFilter === status ? 'brand-gradient-bg text-white' : 'bg-white text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* QUOTES TABLE */}
+            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4">N° Orçamento</th>
+                    <th className="p-4">Cliente / Empresa</th>
+                    <th className="p-4">WhatsApp</th>
+                    <th className="p-4">Itens</th>
+                    <th className="p-4">Valor Total</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {filteredQuotes.map(quote => (
+                    <tr key={quote.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-mono font-extrabold text-[#204060]">
+                        {quote.quote_number}
+                      </td>
+                      <td className="p-4">
+                        <span className="font-bold text-slate-900 block">{quote.client.name}</span>
+                        <span className="text-[10px] text-slate-500">{quote.client.company}</span>
+                      </td>
+                      <td className="p-4 font-mono text-slate-700">{quote.client.whatsapp}</td>
+                      <td className="p-4 font-semibold">{quote.items.length} produtos</td>
+                      <td className="p-4 font-extrabold text-slate-900">
+                        {formatCurrency(quote.total_amount)}
+                      </td>
+                      <td className="p-4">
+                        <select
+                          value={quote.status}
+                          onChange={e => handleUpdateStatus(quote.id, e.target.value as QuoteStatus)}
+                          className="bg-slate-100 text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1 focus:outline-none border border-slate-300"
+                        >
+                          {quoteStatuses.map(st => (
+                            <option key={st} value={st}>
+                              {st}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => setSelectedQuoteDetail(quote)}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ANALYTICS TAB */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-extrabold text-slate-900">Eventos & Métricas em Tempo Real</h2>
+              <p className="text-xs text-slate-500 font-medium">Log de navegação do estande e interação com QR Codes.</p>
+            </div>
+
+            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4">Data/Hora</th>
+                    <th className="p-4">Tipo de Evento</th>
+                    <th className="p-4">Produto / Referência</th>
+                    <th className="p-4">ID Sessão</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {analytics.map(evt => (
+                    <tr key={evt.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-mono text-slate-500 text-[11px]">
+                        {new Date(evt.created_at).toLocaleString('pt-BR')}
+                      </td>
+                      <td className="p-4">
+                        <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 font-bold text-[10px]">
+                          {evt.event_type}
+                        </span>
+                      </td>
+                      <td className="p-4 font-bold text-slate-900">
+                        {evt.product_name || evt.metadata?.productName || '-'}
+                      </td>
+                      <td className="p-4 font-mono text-slate-500 text-[11px]">
+                        {evt.session_id}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* CREATE / EDIT CATEGORY MODAL */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md bg-white p-6 rounded-3xl border border-slate-200 space-y-4 my-8 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-lg">
+                {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
+              </h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCategory} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Nome da Categoria *</label>
+                <input
+                  name="name"
+                  required
+                  defaultValue={editingCategory?.name || ''}
+                  placeholder="Ex: Peças Decorativas em Vidro"
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Descrição</label>
+                <textarea
+                  name="description"
+                  rows={2}
+                  defaultValue={editingCategory?.description || ''}
+                  placeholder="Descrição da linha de produtos..."
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Ícone Visual</label>
+                  <select
+                    name="icon"
+                    defaultValue={editingCategory?.icon || 'Sparkles'}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
+                  >
+                    <option value="Sparkles">Sparkles ✨</option>
+                    <option value="Home">Home Decor 🏠</option>
+                    <option value="Award">Award / Feira 🏆</option>
+                    <option value="Gift">Presentes 🎁</option>
+                    <option value="Star">Star ⭐</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Ordem de Exibição</label>
+                  <input
+                    name="display_order"
+                    type="number"
+                    defaultValue={editingCategory?.display_order || (categories.length + 1)}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-xl brand-gradient-bg font-extrabold text-sm shadow-md mt-4 text-white uppercase tracking-wider"
+              >
+                Salvar Categoria
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUCCESSFUL ADMIN GENERATED QUOTE MODAL */}
+      {generatedQuoteSuccess && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-6 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center mx-auto text-emerald-600">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">ORÇAMENTO CRIADO COM SUCESSO!</span>
+              <h3 className="text-3xl font-extrabold text-slate-900">N° {generatedQuoteSuccess.quote_number}</h3>
+              <p className="text-xs text-slate-500">
+                Registrado para <strong>{generatedQuoteSuccess.client.company}</strong> ({generatedQuoteSuccess.client.name})
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2 text-left">
+              <div className="flex justify-between">
+                <span>Total de Itens:</span>
+                <strong className="text-slate-900">{generatedQuoteSuccess.items.length} produtos</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Valor Total:</span>
+                <strong className="text-[#204060] font-extrabold text-sm">{formatCurrency(generatedQuoteSuccess.total_amount)}</strong>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                onClick={() => {
+                  const url = buildWhatsAppUrl(
+                    generatedQuoteSuccess.client.whatsapp,
+                    generatedQuoteSuccess.quote_number,
+                    generatedQuoteSuccess.client.name,
+                    generatedQuoteSuccess.client.company,
+                    generatedQuoteSuccess.items,
+                    generatedQuoteSuccess.total_amount
+                  );
+                  window.open(url, '_blank');
+                }}
+                className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-lg hover:scale-105 transition-transform flex items-center justify-center gap-2 uppercase tracking-wider"
+              >
+                <Send className="w-5 h-5 text-white" />
+                <span>ENVIAR ORÇAMENTO VIA WHATSAPP</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setGeneratedQuoteSuccess(null);
+                  setActiveTab('quotes');
+                }}
+                className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200"
+              >
+                Ver na Lista de Orçamentos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE / EDIT PRODUCT MODAL */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-xl bg-white p-6 rounded-3xl border border-slate-200 space-y-4 my-8 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-lg">
+                {editingProduct ? 'Editar Produto' : 'Cadastrar Novo Produto'}
+              </h3>
+              <button onClick={() => setIsProductModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProduct} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">SKU / Código</label>
+                  <input
+                    name="sku"
+                    required
+                    defaultValue={editingProduct?.sku || ''}
+                    placeholder="Ex: VDR-WAV-99"
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Categoria</label>
+                  <select
+                    name="category_id"
+                    defaultValue={editingProduct?.category_id || (categories[0]?.id || '')}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
+                  >
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Nome do Produto</label>
+                <input
+                  name="name"
+                  required
+                  defaultValue={editingProduct?.name || ''}
+                  placeholder="Ex: Vaso Decorativo Vidro Verde"
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Descrição Curta</label>
+                <input
+                  name="short_desc"
+                  required
+                  defaultValue={editingProduct?.short_desc || ''}
+                  placeholder="Resumo para o card"
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Descrição Completa</label>
+                <textarea
+                  name="description"
+                  rows={2}
+                  defaultValue={editingProduct?.description || ''}
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Preço Normal (R$)</label>
+                  <input
+                    name="price"
+                    type="number"
+                    step="0.01"
+                    required
+                    defaultValue={editingProduct?.price || 0}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Preço Promo (R$)</label>
+                  <input
+                    name="promo_price"
+                    type="number"
+                    step="0.01"
+                    defaultValue={editingProduct?.promo_price || ''}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Qtd. Mínima (MOQ)</label>
+                  <input
+                    name="moq"
+                    type="number"
+                    required
+                    defaultValue={editingProduct?.moq || 1}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">URL da Imagem (Unsplash / Supabase)</label>
+                <input
+                  name="image_url"
+                  defaultValue={editingProduct?.images[0] || ''}
+                  placeholder="https://..."
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                />
+              </div>
+
+              <div className="flex items-center gap-6 pt-2 font-bold">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="is_active" defaultChecked={editingProduct?.is_active ?? true} />
+                  <span>Ativo</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="is_featured" defaultChecked={editingProduct?.is_featured ?? false} />
+                  <span>Destaque</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="is_launch" defaultChecked={editingProduct?.is_launch ?? false} />
+                  <span>Lançamento</span>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-xl brand-gradient-bg font-extrabold text-sm shadow-md mt-4 text-white uppercase tracking-wider"
+              >
+                Salvar Produto
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* QUOTE DETAIL MODAL */}
+      {selectedQuoteDetail && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-xl bg-white p-6 rounded-3xl border border-slate-200 space-y-4 my-8 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <span className="text-[10px] font-extrabold text-[#204060] uppercase">DETALHES DO ORÇAMENTO</span>
+                <h3 className="font-extrabold text-slate-900 text-lg">N° {selectedQuoteDetail.quote_number}</h3>
+              </div>
+              <button onClick={() => setSelectedQuoteDetail(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="grid grid-cols-2 gap-2 text-slate-700">
+                <div><strong className="text-slate-900">Cliente:</strong> {selectedQuoteDetail.client.name}</div>
+                <div><strong className="text-slate-900">Empresa:</strong> {selectedQuoteDetail.client.company}</div>
+                <div><strong className="text-slate-900">WhatsApp:</strong> {selectedQuoteDetail.client.whatsapp}</div>
+                <div><strong className="text-slate-900">E-mail:</strong> {selectedQuoteDetail.client.email}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-bold text-slate-900 text-xs">Itens Solicitados:</h4>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {selectedQuoteDetail.items.map((item, idx) => (
+                  <div key={idx} className="p-3 rounded-xl bg-slate-50 text-xs flex items-center justify-between border border-slate-100">
+                    <div>
+                      <span className="font-bold text-slate-900 block">{item.product.name}</span>
+                      <span className="text-[10px] text-slate-500 font-medium">Qtd: {item.quantity} un. | Opção: {item.selectedOption}</span>
+                    </div>
+                    <span className="font-extrabold text-slate-900">{formatCurrency(item.lineSubtotal)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 flex items-center justify-between font-extrabold text-sm text-slate-900">
+              <span>Valor Total:</span>
+              <span className="text-[#204060] text-base">{formatCurrency(selectedQuoteDetail.total_amount)}</span>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

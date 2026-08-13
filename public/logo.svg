@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <rect width="400" height="400" fill="#204060" />
+  
+  <!-- Brushstroke / Organic Square Outline -->
+  <path d="M 148 108 L 252 110 C 255 110, 256 112, 255 115 L 253 218 C 252 222, 250 223, 246 222 L 145 220 C 142 220, 140 218, 141 214 L 143 112 C 144 109, 146 108, 148 108 Z" 
+        fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Organic Calligraphic Brushstroke "T" -->
+  <!-- Top bar of the T -->
+  <path d="M 165 138 C 185 132, 215 130, 238 135 C 243 136, 246 140, 240 143 C 220 148, 195 150, 172 147 C 166 146, 162 140, 165 138 Z" fill="#FFFFFF" />
+  
+  <!-- Stem / Body of the T curved down-left -->
+  <path d="M 215 142 C 205 160, 185 190, 168 208 C 165 211, 161 210, 164 204 C 178 185, 198 158, 206 143 Z" fill="#FFFFFF" />
+
+  <!-- Typography "TOQUE IDEAL" -->
+  <text x="200" y="278" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="28" font-weight="600" fill="#FFFFFF" text-anchor="middle" letter-spacing="9">TOQUE IDEAL</text>
+</svg>

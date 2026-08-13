@@ -1,14 +1,14 @@
 -- TOQUE IDEAL DIGITAL SHOWROOM - SUPABASE DATABASE SCHEMA
--- Execute este arquivo no SQL Editor do seu Dashboard Supabase
+-- Execute este arquivo no SQL Editor do seu Dashboard Supabase (https://supabase.com/dashboard/project/unnskpqpnmpxenzfxesb/sql)
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. CATEGORIAS
 CREATE TABLE IF NOT EXISTS public.categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(100) NOT NULL UNIQUE,
-    slug VARCHAR(100) NOT NULL UNIQUE,
-    icon VARCHAR(50) DEFAULT 'Package',
+    id VARCHAR(100) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NOT NULL UNIQUE,
+    icon VARCHAR(50) DEFAULT 'Sparkles',
     description TEXT,
     display_order INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -16,53 +16,36 @@ CREATE TABLE IF NOT EXISTS public.categories (
 
 -- 2. PRODUTOS
 CREATE TABLE IF NOT EXISTS public.products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sku VARCHAR(50) NOT NULL UNIQUE,
+    id VARCHAR(100) PRIMARY KEY,
+    sku VARCHAR(100) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL UNIQUE,
     description TEXT NOT NULL,
     short_desc TEXT NOT NULL,
     price DECIMAL(10,2) NOT NULL,
     promo_price DECIMAL(10,2) DEFAULT NULL,
-    moq INT NOT NULL DEFAULT 1, -- Quantidade Mínima
-    category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
+    moq INT NOT NULL DEFAULT 1,
+    category_id VARCHAR(100) REFERENCES public.categories(id) ON DELETE SET NULL,
+    category_name VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE,
     is_featured BOOLEAN DEFAULT FALSE,
     is_launch BOOLEAN DEFAULT FALSE,
-    custom_options JSONB DEFAULT '["Gravação Laser", "Impressão UV", "Serigrafia"]'::jsonb,
+    custom_options JSONB DEFAULT '["Gravação Laser no Vidro", "Lapidação Especial"]'::jsonb,
+    available_colors JSONB DEFAULT '["Verde Esmeralda", "Âmbar Dourado", "Azul Cobalto", "Incolor / Transparente"]'::jsonb,
+    has_gold_rim_option BOOLEAN DEFAULT TRUE,
+    images JSONB DEFAULT '[]'::jsonb,
     specs JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. IMAGENS DO PRODUTO
-CREATE TABLE IF NOT EXISTS public.product_images (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-    image_url TEXT NOT NULL,
-    is_primary BOOLEAN DEFAULT FALSE,
-    display_order INT DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 4. CLIENTES
-CREATE TABLE IF NOT EXISTS public.clients (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    company VARCHAR(255) NOT NULL,
-    whatsapp VARCHAR(50) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    city VARCHAR(100) NOT NULL,
-    state VARCHAR(50) DEFAULT 'SP',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 5. ORÇAMENTOS / PEDIDOS COMERCIAIS
+-- 3. ORÇAMENTOS / PEDIDOS COMERCIAIS
 CREATE TABLE IF NOT EXISTS public.quotes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id VARCHAR(100) PRIMARY KEY,
     quote_number VARCHAR(50) NOT NULL UNIQUE,
-    client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
-    status VARCHAR(50) NOT NULL DEFAULT 'Novo', -- Novo, Em análise, Orçamento enviado, Negociação, Aprovado, Produção, Concluído, Cancelado
+    client JSONB NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'Novo',
+    items JSONB NOT NULL,
     subtotal DECIMAL(10,2) NOT NULL,
     discount_amount DECIMAL(10,2) DEFAULT 0.00,
     total_amount DECIMAL(10,2) NOT NULL,
@@ -71,69 +54,47 @@ CREATE TABLE IF NOT EXISTS public.quotes (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 6. ITENS DO ORÇAMENTO
-CREATE TABLE IF NOT EXISTS public.quote_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    quote_id UUID NOT NULL REFERENCES public.quotes(id) ON DELETE CASCADE,
-    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
-    product_name VARCHAR(255) NOT NULL,
-    sku VARCHAR(50) NOT NULL,
-    unit_price DECIMAL(10,2) NOT NULL,
-    quantity INT NOT NULL,
-    customization_details TEXT,
-    line_subtotal DECIMAL(10,2) NOT NULL
-);
-
--- 7. EVENTOS ANALYTICS (MODO EXPOSIÇÃO & MÉTRICAS)
+-- 4. EVENTOS ANALYTICS (MODO EXPOSIÇÃO & MÉTRICAS)
 CREATE TABLE IF NOT EXISTS public.analytics_events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    event_type VARCHAR(100) NOT NULL, -- product_view, product_add, quote_submitted, qr_generated, whatsapp_clicked, session_started
-    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    id VARCHAR(100) PRIMARY KEY,
+    event_type VARCHAR(100) NOT NULL,
+    product_id VARCHAR(100),
+    product_name VARCHAR(255),
     session_id VARCHAR(100),
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- ROW LEVEL SECURITY (RLS) POLICIES
+-- ROW LEVEL SECURITY (RLS) POLICIES - TOTAL READ/WRITE ACCESS
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.product_images ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quotes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.quote_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.analytics_events ENABLE ROW LEVEL SECURITY;
 
--- Leitura pública para o showroom
-CREATE POLICY "Public categories are viewable by everyone" ON public.categories FOR SELECT USING (true);
-CREATE POLICY "Public products are viewable by everyone" ON public.products FOR SELECT USING (true);
-CREATE POLICY "Public product images are viewable by everyone" ON public.product_images FOR SELECT USING (true);
+-- POLÍTICAS PERMISSIVAS PARA SHOWROOM E PAINEL ADMIN
+DROP POLICY IF EXISTS "Public categories read" ON public.categories;
+DROP POLICY IF EXISTS "Public categories write" ON public.categories;
+CREATE POLICY "Public categories read" ON public.categories FOR SELECT USING (true);
+CREATE POLICY "Public categories write" ON public.categories FOR ALL USING (true) WITH CHECK (true);
 
--- Permissão de inserção pública para orçamentos e eventos
-CREATE POLICY "Allow public client creation" ON public.clients FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public quote creation" ON public.quotes FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public quote items creation" ON public.quote_items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public analytics events" ON public.analytics_events FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Public products read" ON public.products;
+DROP POLICY IF EXISTS "Public products write" ON public.products;
+CREATE POLICY "Public products read" ON public.products FOR SELECT USING (true);
+CREATE POLICY "Public products write" ON public.products FOR ALL USING (true) WITH CHECK (true);
 
--- Leitura/Escrita completa para admin e serviço
-CREATE POLICY "Allow full access for authenticated admin" ON public.quotes FOR ALL USING (true);
-CREATE POLICY "Allow full access for authenticated clients" ON public.clients FOR ALL USING (true);
-CREATE POLICY "Allow full product admin manage" ON public.products FOR ALL USING (true);
-CREATE POLICY "Allow full images admin manage" ON public.product_images FOR ALL USING (true);
+DROP POLICY IF EXISTS "Public quotes read" ON public.quotes;
+DROP POLICY IF EXISTS "Public quotes write" ON public.quotes;
+CREATE POLICY "Public quotes read" ON public.quotes FOR SELECT USING (true);
+CREATE POLICY "Public quotes write" ON public.quotes FOR ALL USING (true) WITH CHECK (true);
 
--- INDICES PARA PERFORMANCE
-CREATE INDEX IF NOT EXISTS idx_products_category ON public.products(category_id);
-CREATE INDEX IF NOT EXISTS idx_products_slug ON public.products(slug);
-CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON public.quote_items(quote_id);
-CREATE INDEX IF NOT EXISTS idx_analytics_event_type ON public.analytics_events(event_type);
+DROP POLICY IF EXISTS "Public analytics read" ON public.analytics_events;
+DROP POLICY IF EXISTS "Public analytics write" ON public.analytics_events;
+CREATE POLICY "Public analytics read" ON public.analytics_events FOR SELECT USING (true);
+CREATE POLICY "Public analytics write" ON public.analytics_events FOR ALL USING (true) WITH CHECK (true);
 
--- DADOS INICIAIS / SEED DATA
+-- SEED DATA DE CATEGORIAS INICIAIS
 INSERT INTO public.categories (id, name, slug, icon, description, display_order) VALUES
-('c0000000-0000-0000-0000-000000000001', 'Taças', 'tacas', 'Wine', 'Taças personalizadas em acrílico cristal e vidro lapidado', 1),
-('c0000000-0000-0000-0000-000000000002', 'Copos', 'copos', 'Beer', 'Copos premium, long drink, térmicos e metalizados', 2),
-('c0000000-0000-0000-0000-000000000003', 'Troféus', 'trofeus', 'Trophy', 'Troféus de alta precisão em acrílico bisotado, vidro e inox', 3),
-('c0000000-0000-0000-0000-000000000004', 'Brindes Corporativos', 'brindes-corporativos', 'Gift', 'Soluções exclusivas para eventos, colaboradores e clientes VIP', 4),
-('c0000000-0000-0000-0000-000000000005', 'Produtos Personalizados', 'produtos-personalizados', 'Sparkles', 'Artefatos com gravação a laser, impressão UV e alto relevo', 5),
-('c0000000-0000-0000-0000-000000000006', 'Soluções Corporativas', 'solucoes-corporativas', 'Building2', 'Kits para grandes empresas, convenções e premiações', 6),
-('c0000000-0000-0000-0000-000000000007', 'Lançamentos', 'lancamentos', 'Zap', 'Últimas novidades e designs exclusivos Toque Ideal', 7),
-('c0000000-0000-0000-0000-000000000008', 'Mais Vendidos', 'mais-vendidos', 'Flame', 'Os campeões de vendas em grandes eventos e feiras', 8)
-ON CONFLICT (slug) DO NOTHING;
+('c0000000-0000-0000-0000-000000000001', 'Peças Decorativas em Vidro', 'pecas-decorativas-vidro', 'Sparkles', 'Design exclusivo em vidro moldado, ondas e esculturas de alta sofisticação.', 1),
+('c0000000-0000-0000-0000-000000000002', 'Home Decor & Design', 'home-decor', 'Home', 'Peças únicas que transformam ambientes de luxo, residências e recepções corporativas.', 2),
+('c0000000-0000-0000-0000-000000000003', 'Destaques ABCasa Fair', 'abcasa-fair', 'Award', 'Modelos expostos nas maiores feiras do segmento de decoração e design nacional.', 3)
+ON CONFLICT (id) DO NOTHING;

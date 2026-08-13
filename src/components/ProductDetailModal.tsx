@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useShowroom } from '@/lib/store';
 import { PersonalizationOption } from '@/types';
 import { formatCurrency } from '@/lib/utils';
@@ -8,11 +8,8 @@ import {
   X,
   Plus,
   Minus,
-  Check,
   Sparkles,
-  ShieldCheck,
   Info,
-  Layers,
   Palette,
   CheckCircle2,
 } from 'lucide-react';
@@ -29,20 +26,31 @@ const colorSwatches: Record<string, { bg: string; border: string }> = {
 export const ProductDetailModal: React.FC = () => {
   const { selectedProduct, setSelectedProduct, addToCart, setIsQuoteDrawerOpen } = useShowroom();
 
-  if (!selectedProduct) return null;
-
-  const colorsList = selectedProduct.available_colors && selectedProduct.available_colors.length > 0
+  const colorsList = selectedProduct?.available_colors && selectedProduct.available_colors.length > 0
     ? selectedProduct.available_colors
     : ['Verde Esmeralda', 'Âmbar Dourado', 'Azul Cobalto', 'Incolor / Transparente'];
 
-  const [quantity, setQuantity] = useState<number>(selectedProduct.moq || 1);
+  const [quantity, setQuantity] = useState<number>(selectedProduct?.moq || 1);
   const [selectedOption, setSelectedOption] = useState<PersonalizationOption>(
-    selectedProduct.custom_options[0] || 'Gravação Laser no Vidro'
+    selectedProduct?.custom_options[0] || 'Gravação Laser no Vidro'
   );
   const [selectedColor, setSelectedColor] = useState<string>(colorsList[0]);
-  const [hasGoldRim, setHasGoldRim] = useState<boolean>(Boolean(selectedProduct.has_gold_rim_option));
+  const [hasGoldRim, setHasGoldRim] = useState<boolean>(Boolean(selectedProduct?.has_gold_rim_option));
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const [customNotes, setCustomNotes] = useState<string>('');
+
+  // ESC KEY TO CLOSE MODAL
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedProduct(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setSelectedProduct]);
+
+  if (!selectedProduct) return null;
 
   const displayPrice = selectedProduct.promo_price || selectedProduct.price;
   const lineSubtotal = displayPrice * quantity;
@@ -57,22 +65,41 @@ export const ProductDetailModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="relative w-full max-w-4xl bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden my-8">
+    <div
+      onClick={() => setSelectedProduct(null)}
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6"
+    >
+      {/* MODAL CARD CONTAINER */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-white rounded-3xl border border-slate-200 shadow-2xl my-auto flex flex-col no-scrollbar"
+      >
         
-        {/* CLOSE BUTTON */}
-        <button
-          onClick={() => setSelectedProduct(null)}
-          className="absolute top-4 right-4 z-20 p-2.5 rounded-full bg-white/90 border border-slate-200 text-slate-600 hover:text-slate-900 shadow-md transition-transform hover:scale-110"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* STICKY TOP BAR WITH CLEAR ALWAYS-VISIBLE CLOSE BUTTON */}
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-200 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#204060] animate-pulse" />
+            <span className="text-xs font-extrabold text-[#204060] uppercase tracking-wider">
+              {selectedProduct.category_name || 'Vidro Decorativo'} • SKU: {selectedProduct.sku}
+            </span>
+          </div>
 
+          <button
+            onClick={() => setSelectedProduct(null)}
+            className="p-2 px-3.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs border border-slate-300 transition-all flex items-center gap-1.5 shadow-sm hover:scale-105"
+            title="Fechar janela (ou clique fora)"
+          >
+            <span className="uppercase tracking-wider">FECHAR</span>
+            <X className="w-4 h-4 text-slate-800" />
+          </button>
+        </div>
+
+        {/* MODAL BODY CONTENT */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 sm:p-8">
           
           {/* GALLERY COLUMN */}
           <div className="space-y-4">
-            <div className="relative aspect-square rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
+            <div className="relative aspect-square rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm">
               <img
                 src={selectedProduct.images[activeImageIndex] || selectedProduct.images[0]}
                 alt={selectedProduct.name}
@@ -125,10 +152,7 @@ export const ProductDetailModal: React.FC = () => {
             
             <div className="space-y-4">
               <div>
-                <span className="text-xs font-extrabold text-[#204060] uppercase tracking-wider block">
-                  {selectedProduct.category_name || 'Vidro Decorativo'} • SKU: {selectedProduct.sku}
-                </span>
-                <h2 className="text-2xl font-extrabold text-slate-900 leading-tight mt-1">
+                <h2 className="text-2xl font-extrabold text-slate-900 leading-tight">
                   {selectedProduct.name}
                 </h2>
               </div>
@@ -142,7 +166,7 @@ export const ProductDetailModal: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <Palette className="w-4 h-4 text-[#204060]" />
-                    <span>Cor do Vidro:</span>
+                    <span>COR DO VIDRO:</span>
                   </label>
                   <span className="text-xs font-extrabold text-[#204060]">{selectedColor}</span>
                 </div>
@@ -171,7 +195,7 @@ export const ProductDetailModal: React.FC = () => {
               </div>
 
               {/* GOLD RIM (BORDA DOURADA) TOGGLE OPTION */}
-              <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2">
+              <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 space-y-2 shadow-sm">
                 <div className="flex items-center justify-between cursor-pointer" onClick={() => setHasGoldRim(!hasGoldRim)}>
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white shadow-sm">
@@ -195,7 +219,7 @@ export const ProductDetailModal: React.FC = () => {
               {/* PERSONALIZATION TECHNIQUE SELECTOR */}
               <div className="space-y-2">
                 <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wider block">
-                  Técnica de Acabamento / Personalização:
+                  TÉCNICA DE ACABAMENTO / PERSONALIZAÇÃO:
                 </label>
 
                 <div className="grid grid-cols-1 gap-2">
@@ -221,7 +245,7 @@ export const ProductDetailModal: React.FC = () => {
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                    Quantidade Solicitada:
+                    QUANTIDADE SOLICITADA:
                   </label>
                   <span className="text-[11px] text-slate-500 font-medium">
                     (Mínimo: {selectedProduct.moq} un.)
@@ -249,7 +273,7 @@ export const ProductDetailModal: React.FC = () => {
 
                   <div className="flex-1 text-right">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                      Subtotal da Peça
+                      SUBTOTAL DA PEÇA
                     </span>
                     <span className="text-2xl font-black text-[#204060]">
                       {formatCurrency(lineSubtotal)}

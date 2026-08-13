@@ -35,19 +35,19 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-white/95 border-b border-slate-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-white/95 border-b border-slate-200 shadow-sm transition-all">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2">
         
         {/* OFFICIAL LOGO TOQUE IDEAL */}
         <div
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="cursor-pointer"
+          className="cursor-pointer shrink-0"
         >
           <Logo size="md" theme="light" />
         </div>
 
         {/* DESKTOP NAV LINKS */}
-        <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
+        <nav className="hidden lg:flex items-center gap-8 text-sm font-medium">
           <button
             onClick={() => scrollToSection('inicio')}
             className="text-slate-700 hover:text-[#204060] transition-colors font-extrabold uppercase tracking-wider text-xs"
@@ -69,13 +69,13 @@ export const Header: React.FC = () => {
         </nav>
 
         {/* ACTIONS */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           
           {/* MODO EXPOSIÇÃO TOGGLE */}
           <button
             onClick={toggleExhibitionMode}
             title={isExhibitionMode ? 'Desativar Modo Exposição' : 'Ativar Modo Exposição para Estande'}
-            className={`hidden sm:flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all border ${
+            className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-extrabold transition-all border ${
               isExhibitionMode
                 ? 'brand-gradient-bg border-transparent text-white shadow-md animate-pulse'
                 : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
@@ -89,20 +89,20 @@ export const Header: React.FC = () => {
           <button
             onClick={handleShareCatalogQR}
             title="Gerar QR Code para Celular"
-            className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:border-[#204060] text-slate-700 hover:text-[#204060] transition-colors"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:border-[#204060] text-slate-700 hover:text-[#204060] transition-colors"
           >
-            <QrCode className="w-5 h-5 text-[#204060]" />
+            <QrCode className="w-4 h-4 sm:w-5 sm:h-5 text-[#204060]" />
           </button>
 
           {/* SHOPPING CART BUTTON */}
           <button
             onClick={() => setIsQuoteDrawerOpen(true)}
-            className="relative flex items-center gap-2 px-4 py-2.5 rounded-xl brand-gradient-bg font-extrabold text-xs shadow-md hover:shadow-lg transition-all duration-300 group text-white uppercase tracking-wider"
+            className="relative flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl brand-gradient-bg font-extrabold text-xs shadow-md hover:shadow-lg transition-all duration-300 group text-white uppercase tracking-wider"
           >
             <ShoppingBag className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
-            <span className="hidden sm:inline">Orçamento</span>
+            <span className="inline text-[11px] sm:text-xs">Orçamento</span>
             {cartTotals.totalUnits > 0 && (
-              <span className="w-5 h-5 rounded-full bg-white text-[#204060] text-xs flex items-center justify-center font-extrabold shadow">
+              <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-white text-[#204060] text-[10px] sm:text-xs flex items-center justify-center font-extrabold shadow">
                 {cartTotals.totalUnits}
               </span>
             )}
@@ -111,9 +111,10 @@ export const Header: React.FC = () => {
           {/* MOBILE MENU TOGGLE */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200"
+            className="lg:hidden p-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-200"
+            aria-label="Abrir Menu"
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
         </div>
@@ -121,33 +122,33 @@ export const Header: React.FC = () => {
 
       {/* MOBILE NAV DRAWER */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-b border-slate-200 px-6 py-6 space-y-4 shadow-lg">
+        <div className="lg:hidden bg-white border-b border-slate-200 px-5 py-5 space-y-3 shadow-xl animate-in slide-in-from-top duration-200">
           <button
             onClick={() => scrollToSection('inicio')}
-            className="block w-full text-left py-2 text-slate-800 font-extrabold text-base border-b border-slate-100"
+            className="block w-full text-left py-2.5 text-slate-800 font-extrabold text-sm border-b border-slate-100 uppercase tracking-wider"
           >
             Início
           </button>
           <button
             onClick={() => scrollToSection('catalogo')}
-            className="block w-full text-left py-2 text-slate-800 font-extrabold text-base border-b border-slate-100"
+            className="block w-full text-left py-2.5 text-slate-800 font-extrabold text-sm border-b border-slate-100 uppercase tracking-wider"
           >
             Produtos & Catálogo
           </button>
           <button
             onClick={() => scrollToSection('institucional')}
-            className="block w-full text-left py-2 text-slate-800 font-extrabold text-base border-b border-slate-100"
+            className="block w-full text-left py-2.5 text-slate-800 font-extrabold text-sm border-b border-slate-100 uppercase tracking-wider"
           >
             Sobre Nós
           </button>
           
-          <div className="pt-2 flex flex-col gap-3">
+          <div className="pt-2">
             <button
               onClick={() => {
                 toggleExhibitionMode();
                 setMobileMenuOpen(false);
               }}
-              className="flex items-center justify-center gap-2 py-3 rounded-xl brand-gradient-bg text-white font-bold text-sm shadow-md"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl brand-gradient-bg text-white font-bold text-xs shadow-md uppercase tracking-wider"
             >
               <Monitor className="w-4 h-4 text-white" />
               {isExhibitionMode ? 'Desativar Modo Exposição' : 'Ativar Modo Exposição (Touch)'}

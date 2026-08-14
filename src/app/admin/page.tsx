@@ -57,6 +57,13 @@ import {
   Star,
   Palette,
   MapPin,
+  Kanban,
+  ArrowRight,
+  Clock,
+  Check,
+  ChevronRight,
+  CreditCard,
+  QrCode,
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -64,7 +71,8 @@ export default function AdminPage() {
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'categories' | 'colors' | 'products' | 'quotes' | 'new-quote' | 'analytics'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'pipeline' | 'categories' | 'colors' | 'products' | 'quotes' | 'new-quote' | 'analytics'>('dashboard');
+  const [quoteViewMode, setQuoteViewMode] = useState<'kanban' | 'table'>('kanban');
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [glassColors, setGlassColors] = useState<GlassColorOption[]>([]);
@@ -260,6 +268,25 @@ export default function AdminPage() {
       if (selectedQuoteDetail?.id === quoteId) {
         setSelectedQuoteDetail(null);
       }
+      loadAllData();
+    }
+  };
+
+  // ADVANCE QUOTE STAGE IN KANBAN BOARD
+  const handleAdvanceStage = async (quote: Quote) => {
+    const stageOrder: QuoteStatus[] = [
+      'Novo',
+      'Em análise',
+      'Orçamento enviado',
+      'Negociação',
+      'Aprovado',
+      'Produção',
+      'Concluído',
+    ];
+    const currentIdx = stageOrder.indexOf(quote.status);
+    if (currentIdx >= 0 && currentIdx < stageOrder.length - 1) {
+      const nextStatus = stageOrder[currentIdx + 1];
+      await updateQuoteStatusInStore(quote.id, nextStatus);
       loadAllData();
     }
   };
@@ -471,6 +498,12 @@ export default function AdminPage() {
   const totalQuotesCount = quotes.length;
   const totalPipelineRevenue = quotes.reduce((acc, q) => acc + q.total_amount, 0);
 
+  const newQuotesList = quotes.filter(q => q.status === 'Novo');
+  const reviewQuotesList = quotes.filter(q => q.status === 'Em análise' || q.status === 'Orçamento enviado');
+  const negociationQuotesList = quotes.filter(q => q.status === 'Negociação');
+  const productionQuotesList = quotes.filter(q => q.status === 'Aprovado' || q.status === 'Produção');
+  const completedQuotesList = quotes.filter(q => q.status === 'Concluído');
+
   const productViewCounts: Record<string, number> = {};
   const productAddCounts: Record<string, number> = {};
 
@@ -559,7 +592,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-20 md:pb-8">
       
       {/* FULLY RESPONSIVE AUTHENTICATED ADMIN HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
@@ -597,6 +630,16 @@ export default function AdminPage() {
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
               <span>Dashboard</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('pipeline')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                activeTab === 'pipeline' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900 bg-slate-50 md:bg-transparent'
+              }`}
+            >
+              <Kanban className="w-3.5 h-3.5" />
+              <span>Esteira Kanban</span>
             </button>
 
             <button
@@ -764,6 +807,403 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ESTEIRA KANBAN OPERACIONAL TAB */}
+        {activeTab === 'pipeline' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#204060]/10 border border-[#204060]/20 text-[#204060] text-xs font-bold uppercase tracking-wider mb-1">
+                  <Kanban className="w-3.5 h-3.5 text-[#204060]" />
+                  <span>PAINEL DE OPERAÇÃO & ESTEIRA KANBAN</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                  Gestão Visual de Orçamentos
+                </h2>
+                <p className="text-xs text-slate-500 font-medium">
+                  Acompanhe o fluxo comercial dos pedidos desde a cotação inicial até a produção e entrega.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setActiveTab('new-quote')}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-extrabold text-xs flex items-center gap-2 shadow-md shrink-0 text-white uppercase tracking-wider"
+              >
+                <PlusCircle className="w-4 h-4 text-white" /> + NOVO ORÇAMENTO
+              </button>
+            </div>
+
+            {/* METRICS CARDS LIKE SCREENSHOT 1 */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-md space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-90">FATURAMENTO EM PIPELINE</span>
+                <div className="text-xl sm:text-2xl font-black">{formatCurrency(totalPipelineRevenue)}</div>
+                <span className="text-[10px] opacity-80 block">{quotes.length} orçamentos ativos</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-90">NOVOS PEDIDOS</span>
+                <div className="text-xl sm:text-2xl font-black">{newQuotesList.length}</div>
+                <span className="text-[10px] opacity-80 block">Aguardando atendimento</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-600 to-purple-700 text-white shadow-md space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-90">EM NEGOCIAÇÃO</span>
+                <div className="text-xl sm:text-2xl font-black">{negociationQuotesList.length}</div>
+                <span className="text-[10px] opacity-80 block">Propostas enviadas</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white shadow-md space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-90">EM PRODUÇÃO / CONCLUÍDOS</span>
+                <div className="text-xl sm:text-2xl font-black">{productionQuotesList.length + completedQuotesList.length}</div>
+                <span className="text-[10px] opacity-80 block">Aprovados pelo cliente</span>
+              </div>
+            </div>
+
+            {/* KANBAN BOARD COLUMNS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto pb-4 no-scrollbar">
+              
+              {/* COLUMN 1: NOVOS */}
+              <div className="p-4 rounded-3xl bg-slate-100/90 border border-slate-200 space-y-4 flex flex-col min-h-[500px]">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-blue-500" />
+                    <h3 className="font-extrabold text-slate-900 text-sm uppercase">Novos</h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white font-extrabold text-xs">
+                    {newQuotesList.length}
+                  </span>
+                </div>
+
+                <div className="space-y-3 flex-1 overflow-y-auto max-h-[650px] pr-1 no-scrollbar">
+                  {newQuotesList.length > 0 ? (
+                    newQuotesList.map(quote => (
+                      <div
+                        key={quote.id}
+                        className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3 hover:shadow-md transition-shadow relative"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-extrabold text-[#204060] text-xs">
+                            #{quote.quote_number}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {new Date(quote.created_at).toLocaleDateString('pt-BR')}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 text-xs">{quote.client.company || quote.client.name}</h4>
+                          <span className="text-[11px] text-slate-500 block">{quote.client.name} • {quote.client.whatsapp}</span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-700">
+                            <span>{quote.items.length} produto(s)</span>
+                            <span className="text-[#204060] font-extrabold">{formatCurrency(quote.total_amount)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 gap-1">
+                          <button
+                            onClick={() => handleAdvanceStage(quote)}
+                            className="flex-1 py-2 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-extrabold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                            title="Avançar para Análise"
+                          >
+                            <span>Avançar</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const url = buildWhatsAppUrl(
+                                quote.client.whatsapp,
+                                quote.quote_number,
+                                quote.client.name,
+                                quote.client.company,
+                                quote.items,
+                                quote.total_amount,
+                                quote.client
+                              );
+                              window.open(url, '_blank');
+                            }}
+                            className="p-2 rounded-xl bg-emerald-100 text-emerald-700 font-bold"
+                            title="WhatsApp"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setSelectedQuoteDetail(quote)}
+                            className="p-2 rounded-xl bg-slate-100 text-slate-700"
+                            title="Ver Detalhes"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-slate-400 text-xs font-medium">Nenhum pedido novo</div>
+                  )}
+                </div>
+              </div>
+
+              {/* COLUMN 2: EM ANÁLISE / ENVIADO */}
+              <div className="p-4 rounded-3xl bg-slate-100/90 border border-slate-200 space-y-4 flex flex-col min-h-[500px]">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-amber-500" />
+                    <h3 className="font-extrabold text-slate-900 text-sm uppercase">Em Análise</h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-600 text-white font-extrabold text-xs">
+                    {reviewQuotesList.length}
+                  </span>
+                </div>
+
+                <div className="space-y-3 flex-1 overflow-y-auto max-h-[650px] pr-1 no-scrollbar">
+                  {reviewQuotesList.length > 0 ? (
+                    reviewQuotesList.map(quote => (
+                      <div
+                        key={quote.id}
+                        className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3 hover:shadow-md transition-shadow relative"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-extrabold text-[#204060] text-xs">
+                            #{quote.quote_number}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[9px] font-bold">
+                            {quote.status}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 text-xs">{quote.client.company || quote.client.name}</h4>
+                          <span className="text-[11px] text-slate-500 block">{quote.client.name} • {quote.client.whatsapp}</span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-700">
+                            <span>{quote.items.length} produto(s)</span>
+                            <span className="text-[#204060] font-extrabold">{formatCurrency(quote.total_amount)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 gap-1">
+                          <button
+                            onClick={() => handleAdvanceStage(quote)}
+                            className="flex-1 py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                            title="Avançar para Negociação"
+                          >
+                            <span>Ir p/ Negociação</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const url = buildWhatsAppUrl(
+                                quote.client.whatsapp,
+                                quote.quote_number,
+                                quote.client.name,
+                                quote.client.company,
+                                quote.items,
+                                quote.total_amount,
+                                quote.client
+                              );
+                              window.open(url, '_blank');
+                            }}
+                            className="p-2 rounded-xl bg-emerald-100 text-emerald-700 font-bold"
+                            title="WhatsApp"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setSelectedQuoteDetail(quote)}
+                            className="p-2 rounded-xl bg-slate-100 text-slate-700"
+                            title="Ver Detalhes"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-slate-400 text-xs font-medium">Nenhum pedido em análise</div>
+                  )}
+                </div>
+              </div>
+
+              {/* COLUMN 3: EM NEGOCIAÇÃO */}
+              <div className="p-4 rounded-3xl bg-slate-100/90 border border-slate-200 space-y-4 flex flex-col min-h-[500px]">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-purple-500" />
+                    <h3 className="font-extrabold text-slate-900 text-sm uppercase">Negociação</h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-600 text-white font-extrabold text-xs">
+                    {negociationQuotesList.length}
+                  </span>
+                </div>
+
+                <div className="space-y-3 flex-1 overflow-y-auto max-h-[650px] pr-1 no-scrollbar">
+                  {negociationQuotesList.length > 0 ? (
+                    negociationQuotesList.map(quote => (
+                      <div
+                        key={quote.id}
+                        className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3 hover:shadow-md transition-shadow relative"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-extrabold text-[#204060] text-xs">
+                            #{quote.quote_number}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[9px] font-bold">
+                            {quote.status}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 text-xs">{quote.client.company || quote.client.name}</h4>
+                          <span className="text-[11px] text-slate-500 block">{quote.client.name} • {quote.client.whatsapp}</span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-700">
+                            <span>{quote.items.length} produto(s)</span>
+                            <span className="text-[#204060] font-extrabold">{formatCurrency(quote.total_amount)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 gap-1">
+                          <button
+                            onClick={() => handleAdvanceStage(quote)}
+                            className="flex-1 py-2 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 font-extrabold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                            title="Aprovar para Produção"
+                          >
+                            <span>Aprovar Pedido</span>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-purple-700" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const url = buildWhatsAppUrl(
+                                quote.client.whatsapp,
+                                quote.quote_number,
+                                quote.client.name,
+                                quote.client.company,
+                                quote.items,
+                                quote.total_amount,
+                                quote.client
+                              );
+                              window.open(url, '_blank');
+                            }}
+                            className="p-2 rounded-xl bg-emerald-100 text-emerald-700 font-bold"
+                            title="WhatsApp"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setSelectedQuoteDetail(quote)}
+                            className="p-2 rounded-xl bg-slate-100 text-slate-700"
+                            title="Ver Detalhes"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-slate-400 text-xs font-medium">Nenhum pedido em negociação</div>
+                  )}
+                </div>
+              </div>
+
+              {/* COLUMN 4: PRODUÇÃO & CONCLUÍDOS */}
+              <div className="p-4 rounded-3xl bg-slate-100/90 border border-slate-200 space-y-4 flex flex-col min-h-[500px]">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-emerald-500" />
+                    <h3 className="font-extrabold text-slate-900 text-sm uppercase">Produção & Concluídos</h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-extrabold text-xs">
+                    {productionQuotesList.length + completedQuotesList.length}
+                  </span>
+                </div>
+
+                <div className="space-y-3 flex-1 overflow-y-auto max-h-[650px] pr-1 no-scrollbar">
+                  {[...productionQuotesList, ...completedQuotesList].length > 0 ? (
+                    [...productionQuotesList, ...completedQuotesList].map(quote => (
+                      <div
+                        key={quote.id}
+                        className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3 hover:shadow-md transition-shadow relative"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-extrabold text-[#204060] text-xs">
+                            #{quote.quote_number}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold">
+                            {quote.status}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 text-xs">{quote.client.company || quote.client.name}</h4>
+                          <span className="text-[11px] text-slate-500 block">{quote.client.name} • {quote.client.whatsapp}</span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-700">
+                            <span>{quote.items.length} produto(s)</span>
+                            <span className="text-[#204060] font-extrabold">{formatCurrency(quote.total_amount)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 gap-1">
+                          {quote.status !== 'Concluído' ? (
+                            <button
+                              onClick={() => handleAdvanceStage(quote)}
+                              className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 text-white font-extrabold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                              title="Finalizar e Concluir Pedido"
+                            >
+                              <span>Concluir Pedido</span>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                            </button>
+                          ) : (
+                            <span className="flex-1 py-2 px-3 rounded-xl bg-slate-100 text-slate-500 font-bold text-[11px] text-center">
+                              Pedido Concluído
+                            </span>
+                          )}
+                          <button
+                            onClick={() => {
+                              const url = buildWhatsAppUrl(
+                                quote.client.whatsapp,
+                                quote.quote_number,
+                                quote.client.name,
+                                quote.client.company,
+                                quote.items,
+                                quote.total_amount,
+                                quote.client
+                              );
+                              window.open(url, '_blank');
+                            }}
+                            className="p-2 rounded-xl bg-emerald-100 text-emerald-700 font-bold"
+                            title="WhatsApp"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setSelectedQuoteDetail(quote)}
+                            className="p-2 rounded-xl bg-slate-100 text-slate-700"
+                            title="Ver Detalhes"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-slate-400 text-xs font-medium">Nenhum pedido concluído ainda</div>
+                  )}
+                </div>
+              </div>
+
             </div>
           </div>
         )}
@@ -1570,6 +2010,69 @@ export default function AdminPage() {
         )}
 
       </main>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR FOR SMARTPHONES LIKE REFERENCE SCREENSHOT 2 */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex items-center justify-around md:hidden shadow-lg">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex flex-col items-center gap-0.5 ${
+            activeTab === 'dashboard' ? 'text-[#204060] font-extrabold' : 'text-slate-500 font-medium'
+          }`}
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          <span className="text-[10px]">Painel</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('pipeline')}
+          className={`flex flex-col items-center gap-0.5 relative ${
+            activeTab === 'pipeline' ? 'text-[#204060] font-extrabold' : 'text-slate-500 font-medium'
+          }`}
+        >
+          <Kanban className="w-5 h-5" />
+          <span className="text-[10px]">Esteira</span>
+          {newQuotesList.length > 0 && (
+            <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] flex items-center justify-center font-extrabold">
+              {newQuotesList.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('new-quote')}
+          className={`flex flex-col items-center gap-0.5 ${
+            activeTab === 'new-quote' ? 'text-emerald-700 font-extrabold' : 'text-slate-500 font-medium'
+          }`}
+        >
+          <PlusCircle className="w-5 h-5 text-emerald-600" />
+          <span className="text-[10px]">Novo</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('quotes')}
+          className={`flex flex-col items-center gap-0.5 relative ${
+            activeTab === 'quotes' ? 'text-[#204060] font-extrabold' : 'text-slate-500 font-medium'
+          }`}
+        >
+          <FileText className="w-5 h-5" />
+          <span className="text-[10px]">Pedidos</span>
+          {quotes.length > 0 && (
+            <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-[#204060] text-white text-[9px] flex items-center justify-center font-extrabold">
+              {quotes.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('colors')}
+          className={`flex flex-col items-center gap-0.5 ${
+            activeTab === 'colors' ? 'text-[#204060] font-extrabold' : 'text-slate-500 font-medium'
+          }`}
+        >
+          <Palette className="w-5 h-5" />
+          <span className="text-[10px]">Cores</span>
+        </button>
+      </div>
 
       {/* EDIT QUOTE MODAL */}
       {isEditQuoteModalOpen && editingQuote && (

@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Product, Quote, AnalyticsEvent, QuoteStatus, CartItem, PersonalizationOption, Category, GlassColorOption } from '@/types';
+import { Product, Quote, AnalyticsEvent, QuoteStatus, CartItem, PersonalizationOption, Category, GlassColorOption, ClientData } from '@/types';
 import {
   getProductsFromStore,
   saveProductToStore,
   deleteProductFromStore,
   getQuotesFromStore,
   saveQuoteToStore,
+  updateQuoteInStore,
+  deleteQuoteFromStore,
   updateQuoteStatusInStore,
   getAnalyticsEvents,
   getCategoriesFromStore,
@@ -79,7 +81,10 @@ export default function AdminPage() {
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  
   const [selectedQuoteDetail, setSelectedQuoteDetail] = useState<Quote | null>(null);
+  const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
+  const [isEditQuoteModalOpen, setIsEditQuoteModalOpen] = useState(false);
 
   // Edit product color state
   const [formColors, setFormColors] = useState<string[]>([]);
@@ -246,6 +251,53 @@ export default function AdminPage() {
       await deleteColorFromStore(id);
       loadAllData();
     }
+  };
+
+  // DELETE QUOTE
+  const handleDeleteQuote = async (quoteId: string) => {
+    if (confirm('Tem certeza que deseja excluir permanentemente este orçamento?')) {
+      await deleteQuoteFromStore(quoteId);
+      if (selectedQuoteDetail?.id === quoteId) {
+        setSelectedQuoteDetail(null);
+      }
+      loadAllData();
+    }
+  };
+
+  // SAVE EDITED QUOTE
+  const handleSaveEditedQuote = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingQuote) return;
+    const formData = new FormData(e.currentTarget);
+
+    const updatedClient: ClientData = {
+      ...editingQuote.client,
+      name: formData.get('client_name') as string,
+      company: formData.get('client_company') as string,
+      whatsapp: formData.get('client_whatsapp') as string,
+      email: formData.get('client_email') as string,
+      cep: formData.get('client_cep') as string,
+      address: formData.get('client_address') as string,
+      number: formData.get('client_number') as string,
+      neighborhood: formData.get('client_neighborhood') as string,
+      city: formData.get('client_city') as string,
+      state: formData.get('client_state') as string,
+    };
+
+    const updatedQuote: Quote = {
+      ...editingQuote,
+      client: updatedClient,
+      status: (formData.get('status') as QuoteStatus) || editingQuote.status,
+      notes: formData.get('notes') as string,
+    };
+
+    await updateQuoteInStore(updatedQuote);
+    setIsEditQuoteModalOpen(false);
+    setEditingQuote(null);
+    if (selectedQuoteDetail?.id === updatedQuote.id) {
+      setSelectedQuoteDetail(updatedQuote);
+    }
+    loadAllData();
   };
 
   // ADD ITEM TO ADMIN ORDER WORKSTATION
@@ -509,115 +561,130 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       
-      {/* AUTHENTICATED ADMIN HEADER */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center gap-4">
-          <a
-            href="/"
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1 text-xs font-bold"
-            title="Voltar ao Showroom"
+      {/* FULLY RESPONSIVE AUTHENTICATED ADMIN HEADER */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          
+          {/* TOP ROW FOR MOBILE: LOGO, SHOWROOM & BLOQUEAR */}
+          <div className="flex items-center justify-between w-full md:w-auto">
+            <div className="flex items-center gap-3">
+              <a
+                href="/"
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1 text-xs font-bold shrink-0"
+                title="Voltar ao Showroom"
+              >
+                <ArrowLeft className="w-4 h-4" /> Showroom
+              </a>
+              <Logo size="sm" theme="light" />
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="md:hidden p-2 rounded-xl bg-slate-100 hover:bg-red-100 text-slate-700 hover:text-red-700 font-bold text-xs flex items-center gap-1 border border-slate-200 transition-colors shrink-0"
+              title="Bloquear Painel"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* TABS MENU HORIZONTAL SCROLL BAR FOR ALL MOBILE AND TABLET SCREENS */}
+          <nav className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 no-scrollbar shrink-0 border-t md:border-t-0 border-slate-100 pt-2 md:pt-0">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                activeTab === 'dashboard' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900 bg-slate-50 md:bg-transparent'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Dashboard</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                activeTab === 'categories' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900 bg-slate-50 md:bg-transparent'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Categorias</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('colors')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                activeTab === 'colors' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900 bg-slate-50 md:bg-transparent'
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5" />
+              <span>Cores</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('new-quote')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                activeTab === 'new-quote' ? 'bg-emerald-600 text-white shadow-md' : 'text-emerald-700 hover:bg-emerald-50 bg-emerald-50/50'
+              }`}
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>+ Novo Orçamento</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                activeTab === 'products' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900 bg-slate-50 md:bg-transparent'
+              }`}
+            >
+              <Package className="w-3.5 h-3.5" />
+              <span>Produtos</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('quotes')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                activeTab === 'quotes' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900 bg-slate-50 md:bg-transparent'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Orçamentos</span>
+              {quotes.length > 0 && (
+                <span className="w-4 h-4 rounded-full bg-[#204060] text-white text-[9px] flex items-center justify-center font-extrabold shadow">
+                  {quotes.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                activeTab === 'analytics' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900 bg-slate-50 md:bg-transparent'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Analytics</span>
+            </button>
+          </nav>
+
+          {/* DESKTOP LOGOUT BUTTON */}
+          <button
+            onClick={handleLogout}
+            className="hidden md:flex p-2.5 rounded-xl bg-slate-100 hover:bg-red-100 text-slate-700 hover:text-red-700 font-bold text-xs items-center gap-1.5 border border-slate-200 transition-colors shrink-0"
+            title="Bloquear Painel / Sair"
           >
-            <ArrowLeft className="w-4 h-4" /> Showroom
-          </a>
-          <Logo size="sm" theme="light" />
+            <LogOut className="w-4 h-4" />
+            <span>Bloquear</span>
+          </button>
+
         </div>
-
-        {/* TABS */}
-        <nav className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'dashboard' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>Dashboard</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'categories' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>Categorias</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('colors')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'colors' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Palette className="w-4 h-4" />
-            <span>Cores</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('new-quote')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'new-quote' ? 'bg-emerald-600 text-white shadow-md' : 'text-emerald-700 hover:bg-emerald-50'
-            }`}
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>+ Novo Orçamento</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'products' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Produtos</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('quotes')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'quotes' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>Orçamentos</span>
-            {quotes.length > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#204060] text-white text-[10px] flex items-center justify-center font-extrabold shadow">
-                {quotes.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'analytics' ? 'brand-gradient-bg shadow-md text-white' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>Analytics</span>
-          </button>
-        </nav>
-
-        {/* LOGOUT BUTTON */}
-        <button
-          onClick={handleLogout}
-          className="p-2.5 rounded-xl bg-slate-100 hover:bg-red-100 text-slate-700 hover:text-red-700 font-bold text-xs flex items-center gap-1.5 border border-slate-200 transition-colors"
-          title="Bloquear Painel / Sair"
-        >
-          <LogOut className="w-4 h-4" />
-          <span className="hidden sm:inline">Bloquear</span>
-        </button>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6 space-y-8">
+      <main className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6 sm:space-y-8">
         
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <div className="space-y-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
                 <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase">
                   <span>ORÇAMENTOS RECEBIDOS</span>
                   <FileText className="w-4 h-4 text-[#204060]" />
@@ -626,7 +693,7 @@ export default function AdminPage() {
                 <span className="text-[11px] text-emerald-600 font-bold block">+100% de conversão digital</span>
               </div>
 
-              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
+              <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
                 <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase">
                   <span>VALOR EM PIPELINE</span>
                   <DollarSign className="w-4 h-4 text-[#204060]" />
@@ -637,7 +704,7 @@ export default function AdminPage() {
                 <span className="text-[11px] text-slate-500 block font-medium">Soma de orçamentos gerados</span>
               </div>
 
-              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
+              <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
                 <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase">
                   <span>CATÁLOGO ATIVO</span>
                   <Package className="w-4 h-4 text-[#204060]" />
@@ -646,7 +713,7 @@ export default function AdminPage() {
                 <span className="text-[11px] text-slate-500 block font-medium">Produtos cadastrados</span>
               </div>
 
-              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
+              <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-200 bg-white space-y-2 shadow-sm">
                 <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase">
                   <span>INTERAÇÕES NO ESTANDE</span>
                   <TrendingUp className="w-4 h-4 text-[#204060]" />
@@ -658,7 +725,7 @@ export default function AdminPage() {
 
             {/* RANKINGS GRID */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+              <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
                 <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                   <Eye className="w-4 h-4 text-[#204060]" /> Peças Mais Visualizadas
                 </h3>
@@ -678,7 +745,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+              <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
                 <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                   <Plus className="w-4 h-4 text-[#204060]" /> Peças Mais Adicionadas ao Pedido
                 </h3>
@@ -704,7 +771,7 @@ export default function AdminPage() {
         {/* CATEGORIES MANAGEMENT TAB */}
         {activeTab === 'categories' && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-extrabold text-slate-900">Gestão de Categorias</h2>
                 <p className="text-xs text-slate-500 font-medium">Cadastre e organize as categorias de produtos do showroom digital.</p>
@@ -721,15 +788,15 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* CATEGORY TABLE */}
-            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-              <table className="w-full text-left text-xs">
+            {/* SCROLLABLE RESPONSIVE CATEGORY TABLE */}
+            <div className="w-full overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm no-scrollbar">
+              <table className="w-full min-w-[650px] text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                   <tr>
                     <th className="p-4">Ordem</th>
                     <th className="p-4">Ícone</th>
                     <th className="p-4">Nome da Categoria</th>
-                    <th className="p-4">Slug (Identificador URL)</th>
+                    <th className="p-4">Slug (URL)</th>
                     <th className="p-4">Descrição</th>
                     <th className="p-4 text-right">Ações</th>
                   </tr>
@@ -774,7 +841,7 @@ export default function AdminPage() {
         {/* GLASS COLORS MANAGEMENT TAB ("CORES") */}
         {activeTab === 'colors' && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-extrabold text-slate-900">Gestão de Cores do Vidro</h2>
                 <p className="text-xs text-slate-500 font-medium">Cadastre, edite e ative as opções de cores disponíveis para os produtos.</p>
@@ -791,9 +858,9 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* COLORS TABLE */}
-            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-              <table className="w-full text-left text-xs">
+            {/* SCROLLABLE RESPONSIVE COLORS TABLE */}
+            <div className="w-full overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm no-scrollbar">
+              <table className="w-full min-w-[650px] text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                   <tr>
                     <th className="p-4">Amostra Visual</th>
@@ -864,9 +931,9 @@ export default function AdminPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
               <div className="lg:col-span-7 space-y-6">
-                <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
                   <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                     <Package className="w-4 h-4 text-[#204060]" />
                     <span>1. Selecionar Peça do Catálogo</span>
@@ -967,7 +1034,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 className="font-extrabold text-slate-900 text-sm">
                       Itens do Pedido ({adminOrderItems.length})
@@ -982,13 +1049,13 @@ export default function AdminPage() {
                       {adminOrderItems.map((item, idx) => (
                         <div
                           key={idx}
-                          className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4 text-xs"
+                          className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                         >
                           <div className="flex items-center gap-3">
                             <img
                               src={item.product.images[0]}
                               alt=""
-                              className="w-12 h-12 rounded-xl object-cover border border-slate-200"
+                              className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
                             />
                             <div>
                               <span className="font-bold text-slate-900 block">{item.product.name}</span>
@@ -1001,7 +1068,7 @@ export default function AdminPage() {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
                             <div className="flex items-center rounded-lg bg-white border border-slate-300 p-0.5">
                               <button
                                 type="button"
@@ -1020,7 +1087,7 @@ export default function AdminPage() {
                               </button>
                             </div>
 
-                            <span className="font-extrabold text-slate-900 w-24 text-right">
+                            <span className="font-extrabold text-slate-900 text-right">
                               {formatCurrency(item.lineSubtotal)}
                             </span>
 
@@ -1046,7 +1113,7 @@ export default function AdminPage() {
               </div>
 
               <div className="lg:col-span-5 space-y-6">
-                <form onSubmit={handleCreateAdminQuote} className="glass-panel p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <form onSubmit={handleCreateAdminQuote} className="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
                   <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                     <Building className="w-4 h-4 text-[#204060]" />
                     <span>2. Dados do Cliente & Endereço</span>
@@ -1240,7 +1307,7 @@ export default function AdminPage() {
         {/* PRODUCTS MANAGEMENT TAB */}
         {activeTab === 'products' && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-extrabold text-slate-900">Gestão de Catálogo</h2>
                 <p className="text-xs text-slate-500 font-medium">Cadastre, edite e altere preços dos produtos do showroom.</p>
@@ -1270,9 +1337,9 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* PRODUCT TABLE */}
-            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-              <table className="w-full text-left text-xs">
+            {/* SCROLLABLE RESPONSIVE PRODUCT TABLE */}
+            <div className="w-full overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm no-scrollbar">
+              <table className="w-full min-w-[700px] text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                   <tr>
                     <th className="p-4">Produto</th>
@@ -1332,19 +1399,19 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* QUOTES MANAGEMENT TAB */}
+        {/* QUOTES MANAGEMENT TAB WITH FULL EDIT & DELETE ACTIONS */}
         {activeTab === 'quotes' && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-extrabold text-slate-900">Gestão de Orçamentos Comercial</h2>
-                <p className="text-xs text-slate-500 font-medium">Acompanhe os pedidos gerados pelos visitantes do estande.</p>
+                <p className="text-xs text-slate-500 font-medium">Acompanhe, edite e envie propostas dos orçamentos cadastrados.</p>
               </div>
 
-              <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-2">
+              <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-2 no-scrollbar">
                 <button
                   onClick={() => setQuoteStatusFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 ${
                     quoteStatusFilter === 'all' ? 'brand-gradient-bg text-white' : 'bg-white text-slate-700 border border-slate-200'
                   }`}
                 >
@@ -1354,7 +1421,7 @@ export default function AdminPage() {
                   <button
                     key={status}
                     onClick={() => setQuoteStatusFilter(status)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 ${
                       quoteStatusFilter === status ? 'brand-gradient-bg text-white' : 'bg-white text-slate-700 border border-slate-200'
                     }`}
                   >
@@ -1364,9 +1431,9 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* QUOTES TABLE WITH DIRECT WHATSAPP ACTION BUTTON */}
-            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-              <table className="w-full text-left text-xs">
+            {/* SCROLLABLE RESPONSIVE QUOTES TABLE */}
+            <div className="w-full overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm no-scrollbar">
+              <table className="w-full min-w-[750px] text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                   <tr>
                     <th className="p-4">N° Orçamento</th>
@@ -1406,7 +1473,7 @@ export default function AdminPage() {
                           ))}
                         </select>
                       </td>
-                      <td className="p-4 text-right space-x-2">
+                      <td className="p-4 text-right space-x-1.5">
                         <button
                           onClick={() => {
                             const url = buildWhatsAppUrl(
@@ -1432,6 +1499,23 @@ export default function AdminPage() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+                        <button
+                          onClick={() => {
+                            setEditingQuote(quote);
+                            setIsEditQuoteModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                          title="Editar Orçamento"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteQuote(quote.id)}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-100 text-red-600"
+                          title="Excluir Orçamento"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1449,8 +1533,9 @@ export default function AdminPage() {
               <p className="text-xs text-slate-500 font-medium">Log de navegação do estande e interação com QR Codes.</p>
             </div>
 
-            <div className="glass-panel rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-              <table className="w-full text-left text-xs">
+            {/* SCROLLABLE RESPONSIVE ANALYTICS TABLE */}
+            <div className="w-full overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm no-scrollbar">
+              <table className="w-full min-w-[650px] text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                   <tr>
                     <th className="p-4">Data/Hora</th>
@@ -1485,6 +1570,167 @@ export default function AdminPage() {
         )}
 
       </main>
+
+      {/* EDIT QUOTE MODAL */}
+      {isEditQuoteModalOpen && editingQuote && (
+        <div
+          onClick={() => setIsEditQuoteModalOpen(false)}
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4"
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="relative w-full max-w-xl max-h-[88vh] bg-white rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+          >
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0">
+              <div>
+                <span className="text-[10px] font-extrabold text-[#204060] uppercase">EDITAR PEDIDO / ORÇAMENTO</span>
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">N° {editingQuote.quote_number}</h3>
+              </div>
+              <button
+                onClick={() => setIsEditQuoteModalOpen(false)}
+                className="p-1.5 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs border border-slate-300 transition-all flex items-center gap-1 shadow-sm"
+              >
+                <span className="uppercase text-[10px]">FECHAR</span>
+                <X className="w-4 h-4 text-slate-800" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedQuote} className="p-6 overflow-y-auto space-y-4 text-xs flex-1 no-scrollbar">
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-900 text-xs">Dados do Cliente & Contato:</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-700 font-bold block mb-1">Nome do Cliente *</label>
+                    <input
+                      name="client_name"
+                      required
+                      defaultValue={editingQuote.client.name}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-700 font-bold block mb-1">Empresa / Razão Social *</label>
+                    <input
+                      name="client_company"
+                      required
+                      defaultValue={editingQuote.client.company}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-700 font-bold block mb-1">WhatsApp *</label>
+                    <input
+                      name="client_whatsapp"
+                      required
+                      defaultValue={editingQuote.client.whatsapp}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-700 font-bold block mb-1">E-mail Comercial *</label>
+                    <input
+                      name="client_email"
+                      required
+                      defaultValue={editingQuote.client.email}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-slate-700 font-bold block mb-1">CEP</label>
+                    <input
+                      name="client_cep"
+                      defaultValue={editingQuote.client.cep || ''}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-slate-700 font-bold block mb-1">Logradouro / Rua</label>
+                    <input
+                      name="client_address"
+                      defaultValue={editingQuote.client.address || ''}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-slate-700 font-bold block mb-1">Número</label>
+                    <input
+                      name="client_number"
+                      defaultValue={editingQuote.client.number || ''}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-slate-700 font-bold block mb-1">Bairro</label>
+                    <input
+                      name="client_neighborhood"
+                      defaultValue={editingQuote.client.neighborhood || ''}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <label className="text-slate-700 font-bold block mb-1">Cidade</label>
+                    <input
+                      name="client_city"
+                      defaultValue={editingQuote.client.city}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-700 font-bold block mb-1">UF</label>
+                    <input
+                      name="client_state"
+                      defaultValue={editingQuote.client.state}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 uppercase font-bold"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-slate-700 font-bold block">Status do Orçamento</label>
+                <select
+                  name="status"
+                  defaultValue={editingQuote.status}
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-bold"
+                >
+                  {quoteStatuses.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Observações do Pedido</label>
+                <textarea
+                  name="notes"
+                  rows={2}
+                  defaultValue={editingQuote.notes || ''}
+                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-4 rounded-2xl brand-gradient-bg font-extrabold text-sm shadow-xl text-white uppercase tracking-wider"
+              >
+                SALVAR ALTERAÇÕES DO PEDIDO
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CREATE / EDIT CATEGORY MODAL */}
       {isCategoryModalOpen && (
@@ -1707,7 +1953,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* CREATE / EDIT PRODUCT MODAL WITH FULL SCREEN FIT (STICKY HEADER & SCROLLABLE BODY) */}
+      {/* CREATE / EDIT PRODUCT MODAL */}
       {isProductModalOpen && (
         <div
           onClick={() => setIsProductModalOpen(false)}
@@ -1733,7 +1979,7 @@ export default function AdminPage() {
 
             {/* SCROLLABLE FORM BODY */}
             <form onSubmit={handleSaveProduct} className="p-6 overflow-y-auto space-y-4 text-xs flex-1 no-scrollbar">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-slate-700 font-bold block mb-1">SKU / Código *</label>
                   <input
@@ -1836,7 +2082,7 @@ export default function AdminPage() {
                 </label>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-slate-700 font-bold block mb-1">Preço Normal (R$)</label>
                   <input
@@ -1906,7 +2152,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* QUOTE DETAIL MODAL WITH DIRECT WHATSAPP BUTTON */}
+      {/* QUOTE DETAIL MODAL WITH DIRECT WHATSAPP BUTTON, EDIT & DELETE */}
       {selectedQuoteDetail && (
         <div
           onClick={() => setSelectedQuoteDetail(null)}
@@ -1922,13 +2168,36 @@ export default function AdminPage() {
                 <span className="text-[10px] font-extrabold text-[#204060] uppercase">DETALHES DO ORÇAMENTO</span>
                 <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">N° {selectedQuoteDetail.quote_number}</h3>
               </div>
-              <button
-                onClick={() => setSelectedQuoteDetail(null)}
-                className="p-1.5 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs border border-slate-300 transition-all flex items-center gap-1 shadow-sm"
-              >
-                <span className="uppercase text-[10px]">FECHAR</span>
-                <X className="w-4 h-4 text-slate-800" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const q = selectedQuoteDetail;
+                    setSelectedQuoteDetail(null);
+                    setEditingQuote(q);
+                    setIsEditQuoteModalOpen(true);
+                  }}
+                  className="p-1.5 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs border border-slate-300 transition-all flex items-center gap-1"
+                  title="Editar dados deste pedido"
+                >
+                  <Edit className="w-3.5 h-3.5 text-slate-700" />
+                  <span className="uppercase text-[10px]">EDITAR</span>
+                </button>
+                <button
+                  onClick={() => handleDeleteQuote(selectedQuoteDetail.id)}
+                  className="p-1.5 px-3 rounded-full bg-red-50 hover:bg-red-100 text-red-600 font-extrabold text-xs border border-red-200 transition-all flex items-center gap-1"
+                  title="Excluir este pedido"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                  <span className="uppercase text-[10px]">EXCLUIR</span>
+                </button>
+                <button
+                  onClick={() => setSelectedQuoteDetail(null)}
+                  className="p-1.5 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs border border-slate-300 transition-all flex items-center gap-1 shadow-sm ml-2"
+                >
+                  <span className="uppercase text-[10px]">FECHAR</span>
+                  <X className="w-4 h-4 text-slate-800" />
+                </button>
+              </div>
             </div>
 
             {/* SCROLLABLE BODY CONTENT */}

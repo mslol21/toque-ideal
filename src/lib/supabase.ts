@@ -402,12 +402,59 @@ export async function saveQuoteToStore(
   return newQuote;
 }
 
+export async function updateQuoteInStore(quote: Quote): Promise<Quote> {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('toque_ideal_quotes');
+    if (stored) {
+      const currentQuotes: Quote[] = JSON.parse(stored);
+      const updated = currentQuotes.map(q => (q.id === quote.id || q.quote_number === quote.quote_number ? quote : q));
+      localStorage.setItem('toque_ideal_quotes', JSON.stringify(updated));
+    }
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('quotes').upsert({
+        id: quote.id,
+        quote_number: quote.quote_number,
+        client: quote.client,
+        status: quote.status,
+        items: quote.items,
+        subtotal: quote.subtotal,
+        discount_amount: quote.discount_amount,
+        total_amount: quote.total_amount,
+        notes: quote.notes,
+        created_at: quote.created_at,
+      });
+    } catch (e) {}
+  }
+  return quote;
+}
+
+export async function deleteQuoteFromStore(quoteId: string): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('toque_ideal_quotes');
+    if (stored) {
+      const currentQuotes: Quote[] = JSON.parse(stored);
+      const updated = currentQuotes.filter(q => q.id !== quoteId && q.quote_number !== quoteId);
+      localStorage.setItem('toque_ideal_quotes', JSON.stringify(updated));
+    }
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('quotes').delete().eq('id', quoteId);
+    } catch (e) {}
+  }
+  return true;
+}
+
 export async function updateQuoteStatusInStore(quoteId: string, status: QuoteStatus): Promise<boolean> {
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('toque_ideal_quotes');
     if (stored) {
       const currentQuotes: Quote[] = JSON.parse(stored);
-      const updated = currentQuotes.map(q => (q.id === quoteId ? { ...q, status } : q));
+      const updated = currentQuotes.map(q => (q.id === quoteId || q.quote_number === quoteId ? { ...q, status } : q));
       localStorage.setItem('toque_ideal_quotes', JSON.stringify(updated));
     }
   }
